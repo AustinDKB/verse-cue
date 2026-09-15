@@ -1,0 +1,33 @@
+default_language_version:
+  python: python3.12
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: radon-gates
+        name: radon gates (cc A per block, mi A, sloc <= 450)
+        entry: uv run python scripts/check_radon_gates.py
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: complexipy
+        name: complexipy (cognitive <= 10)
+        entry: uv run complexipy
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: pytest
+        name: uv run pytest (full suite, parallel, coverage)
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

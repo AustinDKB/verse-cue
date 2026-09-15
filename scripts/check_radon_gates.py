@@ -6,7 +6,7 @@ Gates (strict pack):
 - Cyclomatic complexity: fail any block graded B or worse
 - Average cyclomatic complexity (`radon cc -a`): must stay grade A with score <= 5.0
 - Maintainability Index: fail any module graded below A (B or C)
-- Raw SLOC: fail any file with SLOC above MAX_SLOC_PER_FILE
+- Raw SLOC: fail any file with SLOC above MAX_SLOC_PER_FILE (450)
 
 Radon itself exits 0 even when findings exist, so this wrapper inspects output.
 """
@@ -21,14 +21,13 @@ import operator
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = ROOT / "app"
+SOURCES = [ROOT / "verse_cue.py", ROOT / "harvest.py"]
 TESTS = ROOT / "tests"
-MAIN = ROOT / "main.py"
-SLOC_PATHS = [APP, TESTS, MAIN]
+SLOC_PATHS = [*SOURCES, TESTS]
 
 # Radon A rank is complexity 1-5. Strict average gate requires grade A and score <= 5.
 MAX_AVERAGE_SCORE = 5.0
-MAX_SLOC_PER_FILE = 300
+MAX_SLOC_PER_FILE = 450  # docs/guides/machine-readable-thresholds.yaml size.file_sloc.fail_gt
 
 # radon cc -a / --total-average prints: Average complexity: A (2.01...)
 _AVERAGE_RE = re.compile(
@@ -67,7 +66,7 @@ def check_cyclomatic() -> None:
             "-m",
             "radon",
             "cc",
-            str(APP),
+            *map(str, SOURCES),
             "-s",
             "-a",
             "--total-average",
@@ -95,7 +94,7 @@ def check_cyclomatic() -> None:
             "-m",
             "radon",
             "cc",
-            str(APP),
+            *map(str, SOURCES),
             "-s",
             "-n",
             "B",
@@ -122,7 +121,7 @@ def check_maintainability() -> None:
             "-m",
             "radon",
             "mi",
-            str(APP),
+            *map(str, SOURCES),
             "-s",
             "-n",
             "B",
@@ -172,8 +171,9 @@ def check_sloc() -> None:
 
 def main() -> None:
     """Run all Radon gates and exit non-zero on failure."""
-    if not APP.is_dir():
-        _fail(f"Missing app directory: {APP}")
+    missing = [str(p) for p in SOURCES if not p.exists()]
+    if missing:
+        _fail(f"Missing source files: {missing}")
     check_cyclomatic()
     check_maintainability()
     check_sloc()
