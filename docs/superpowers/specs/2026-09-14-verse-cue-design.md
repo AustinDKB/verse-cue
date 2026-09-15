@@ -35,6 +35,9 @@ before"; nothing from it is a dependency of this project.
   `harvest.py` (tool). Total production SLOC <= 1000; each file <= 450
   (anti-slop file cap). Config, `aliases.json`, `songs.txt`, tests, docs and
   media are not counted.
+- The repo's radon gate (`scripts/check_radon_gates.py`) is stricter than the
+  yaml on one axis: every function's cyclomatic complexity must be <= 5. The
+  implementation plan's code is written to that budget.
 - Every production function passes `docs/guides/machine-readable-thresholds.yaml`
   (function <= 60 SLOC, cognitive <= 15, nesting <= 4, call depth from entry
   <= 3, no `*Manager`/`*Factory`/`Base*`, no protocol with one impl, no new
@@ -64,7 +67,7 @@ docs/metrics/   bench output: PNG graphs + summary table
 ### The seam
 
 ```python
-def run(frames, pp, model, cfg, now=time.monotonic) -> None
+def run(frames, pp, model, cfg, wait=sleep_until) -> None
 ```
 
 - `frames`: iterator yielding `hop_s` seconds of 16 kHz mono float32 numpy
@@ -77,7 +80,10 @@ def run(frames, pp, model, cfg, now=time.monotonic) -> None
 - `model`: anything with
   `transcribe(audio, **kw) -> iterable of segments with .words[(start,end,word)]`.
   Production: `faster_whisper.WhisperModel`. Tests: scripted fake.
-- `now`: clock, injectable so the bench can run faster than real time.
+- `wait(t)`: production sleeps until wall time `t`; bench passes a no-op.
+  "Now" is `t_end + inference_s` of the frame just processed, so no clock is
+  injected: in production `t_end` is on the monotonic clock, in the bench it is
+  the audio position, and inference latency is included in both.
 
 Production, bench, and tests all call the same `run`. No internal mocking.
 
@@ -107,8 +113,12 @@ Every tick (one `frames` item):
 5. Merge. Words from the previous window whose capture end < new window
    start are appended to `committed`. Transcript = `committed + latest_window`.
    Latest window wins for its own region; no agreement voting.
-6. Drop transcript words with capture start < `last_fire_time + guard_s`
-   (previous slide's held last word bleeding in).
+6. Drop transcript words with capture start < `slide.entered + guard_s`, where
+   `entered` is the tick at which the new uuid was first seen (previous slide's
+   held last word bleeding in). Measuring from `entered` rather than from our
+   own fire time also covers operator-driven changes and needs no cross-slide
+   state; `guard_s` defaults to 0.3 because `entered` already lags the change
+   by up to one hop.
 7. Normalize tokens: lowercase, strip non-letters/apostrophes. Map each token
    through the inverted alias dict (`{alias: canonical}`, O(1)); tokens still
    not in the slide vocabulary go through `difflib.get_close_matches(token,
@@ -122,7 +132,9 @@ Every tick (one `frames` item):
      against identical consecutive slides (chorus x2): a lone held last word
      from the previous slide matches one word and cannot fire.
    - `rate = (t_last - t_first) / (idx_last - idx_first)` when the matched
-     span covers >= 3 slide words, else `cfg.default_sec_per_word`.
+     span covers >= 3 slide words, else `cfg.default_sec_per_word`; clamped to
+     `cfg.rate_bounds` (default `[0.15, 1.5]` s/word) so one false match cannot
+     produce an absurd estimate.
    - `predicted = t_last_start + (N - 1 - idx_last) * rate - cfg.lead_s`.
    - If `idx_last == N - 1` (last word heard): fire now.
    - Else fire when `now() >= predicted`.
@@ -151,8 +163,10 @@ There is one code path; the bench grid `window_s in {3,4,5} x hop_s in
   Empty `text` = blank slide. Polled once per tick (localhost, < 5 ms).
 - `GET /v1/trigger/next` -> advances. Also used at end of song / playlist;
   whatever ProPresenter does is fine.
-- Connection errors: log once, retry each tick with backoff capped at 5 s.
-  Never crash the loop.
+- Connection errors: log to stderr and return the last known slide; the loop
+  is paced by audio frames (one attempt per hop), so no separate backoff.
+  `current: null` (nothing showing) is reported as uuid `""`, on which the loop
+  never fires. Never crash the loop.
 
 ## 4. harvest.py
 
@@ -228,11 +242,12 @@ prompt_mode, beam_size`) and `docs/metrics/`:
 - `timeline_<song>.png` — one song: truth vs fire markers
 - `summary.md` — the grid table
 
-Runtime `metrics.jsonl` (one line per fire): `ts, slide_uuid, n_words,
-idx_from_end, matched, rate, predicted, fired_at, inference_s, blank,
-model, window_s, hop_s, prompt_mode`. A uuid change we did not cause within
-3 s after our fire is logged as `operator_override=true` on the previous
-line. These are the numbers published after several live services.
+Runtime `metrics.jsonl` (one line per slide entered and one per fire):
+`ts, event (enter|fire), uuid, n_words, matched, idx_from_end, predicted,
+entered, fired_at, blank, name, window_s, hop_s, prompt_mode`. Operator
+overrides are derived offline: an `enter` row not preceded by our `fire`
+row for the previous uuid. These are the numbers published after several
+live services.
 
 ## 5. Config
 
@@ -257,8 +272,9 @@ prompt_mode = "none"   # none | slide | hotwords
 
 [decide]
 lead_s = 0.3
-guard_s = 0.5
+guard_s = 0.3
 default_sec_per_word = 0.45
+rate_bounds = [0.15, 1.5]
 min_matched = 4
 fuzzy_cutoff = 0.8
 
