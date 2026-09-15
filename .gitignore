@@ -10,3 +10,5 @@ verse-cue.auto.toml
 .codegraph/
 docs/metrics/bench.json
 *.wav
+!media/narration.wav
+media/models/
