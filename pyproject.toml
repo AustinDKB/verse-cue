@@ -67,7 +67,7 @@ exclude_also = ["if __name__ == .__main__.:", "pragma: no cover"]
 target-version = "py312"
 line-length = 120
 force-exclude = true
-exclude = ["vendor", "scripts", ".cursor", ".agents", ".pi", "media"]
+exclude = ["vendor", "scripts", ".cursor", ".agents", ".pi", "media", "docs"]
 
 [tool.ruff.lint]
 select = ["ALL"]

@@ -62,3 +62,9 @@ def test_main_wires_run(workdir, monkeypatch):
     assert seen["model"] == "MODEL"
     assert seen["pp"].base == "http://127.0.0.1:1025/v1"
     assert seen["cfg"]["aliases"] == {}
+
+
+def test_main_help_does_not_start_the_loop(monkeypatch, capsys):
+    monkeypatch.setattr(vc, "run", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("run started")))
+    vc.main(["--help"])
+    assert "verse-cue [--setup]" in capsys.readouterr().out

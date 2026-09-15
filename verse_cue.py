@@ -298,8 +298,14 @@ def main(argv: list[str] | None = None) -> None:
     args = sys.argv[1:] if argv is None else argv
     if not CONFIG.exists():
         CONFIG.write_text(DEFAULT_CONFIG.read_text())
-    if "--setup" in args:
-        setup()
+    for flag, fn in (
+        ("--setup", setup),
+        ("--help", lambda: print("verse-cue [--setup]  auto-advance ProPresenter lyric slides from a vocal feed")),
+        ("-h", lambda: print("verse-cue [--setup]  auto-advance ProPresenter lyric slides from a vocal feed")),
+    ):
+        if flag not in args:
+            continue
+        fn()
         return
     cfg = load_config()
     cfg["aliases"] = load_aliases()
