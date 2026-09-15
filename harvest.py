@@ -1,8 +1,9 @@
 """verse-cue-harvest: download songs and lyrics, mine Whisper mis-hearings, bench configurations.
 
 verse-cue-harvest download [--limit N]   songs.txt -> data/<slug>.wav + .lrc + .txt
-verse-cue-harvest aliases  [--limit N]   data/ -> aliases.json + docs/metrics/alias_saturation.json
-verse-cue-harvest bench    [--limit N]   data/ -> verse-cue.auto.toml + docs/metrics/{bench.json,summary.md}
+verse-cue-harvest aliases  [--limit N]   data/*.wav (mix) -> aliases.json
+verse-cue-harvest vocals   [--limit N]   data/*.wav -> data/vocals/*.wav (Demucs; mix untouched)
+verse-cue-harvest bench    [--limit N]   prefers data/vocals/ when present
 verse-cue-harvest graphs                 docs/metrics/*.json -> docs/metrics/*.png
 """
 
@@ -107,6 +108,28 @@ def download(limit: int) -> None:
         if not base.with_suffix(".txt").exists():
             save_lyrics(fetch_lyrics(*line.split(" - ", 1)), base)
     print(len(songs(limit)), "songs ready")
+
+
+def isolate(src: Path, dest: Path) -> bool:
+    """Demucs vocal stem to dest as 16 kHz mono. Mix path is never overwritten."""
+    if dest.exists():
+        return True
+    tmp = dest.parent / "_demucs"
+    # uv --with: demucs stays out of .venv (aliases may be running)
+    cmd = ["uv", "run", "--with", "demucs", "python", "-m", "demucs"]
+    cmd += ["--two-stems=vocals", "-n", "htdemucs", "-o", str(tmp), str(src)]
+    if subprocess.run(cmd, check=False).returncode:
+        print("demucs failed:", src.name)
+        return False
+    stem = tmp / "htdemucs" / src.stem / "vocals.wav"
+    ff = ["ffmpeg", "-y", "-i", str(stem), "-ar", "16000", "-ac", "1", str(dest)]
+    return subprocess.run(ff, check=False).returncode == 0 and dest.exists()
+
+
+def vocals(limit: int) -> None:
+    """data/vocals/*.wav for bench. aliases() still reads the YouTube mix."""
+    (DATA / "vocals").mkdir(exist_ok=True)
+    print(sum(isolate(w, DATA / "vocals" / w.name) for w in songs(limit)), "vocal tracks")
 
 
 def group_lines(lines: list[tuple[float, str]], per: int) -> list[list[tuple[float, str]]]:
@@ -245,7 +268,14 @@ def bench_song(wav: Path, model, cfg: dict) -> dict:
     pp = FakePP(slides, lambda: cell[0])
     t0 = time.monotonic()
     quiet = {**cfg, "metrics_file": os.devnull}
-    vc.run(wav_frames(wav, cfg["model"]["hop_s"], cell), pp, model, quiet, wait=lambda _t: None)
+    audio = DATA / "vocals" / wav.name
+    vc.run(
+        wav_frames(audio if audio.exists() else wav, cfg["model"]["hop_s"], cell),
+        pp,
+        model,
+        quiet,
+        wait=lambda _t: None,
+    )
     starts = [t for t, _ in slides]
     fires = (pp.fires + [math.nan] * len(starts))[: len(starts) - 1]
     return {
@@ -320,7 +350,7 @@ def write_auto(row: dict, path: Path) -> None:
 
 
 def write_summary(rows: list[dict], path: Path) -> None:
-    keys = [
+    keys = (
         "name",
         "window_s",
         "hop_s",
@@ -332,7 +362,7 @@ def write_summary(rows: list[dict], path: Path) -> None:
         "late_pct",
         "missed_pct",
         "false_pct",
-    ]
+    )
     ordered = sorted(rows, key=lambda r: (r["p90_abs_delta"] is None, r["p90_abs_delta"] or 0.0))
     lines = ["| " + " | ".join(keys) + " |", "|" + "---|" * len(keys)]
     lines += ["| " + " | ".join(str(r[k]) for k in keys) + " |" for r in ordered]
@@ -425,7 +455,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="verse-cue-harvest", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("command", choices=["download", "aliases", "bench", "graphs"])
+    parser.add_argument("command", choices=["download", "aliases", "vocals", "bench", "graphs"])
     parser.add_argument("--limit", type=int, default=None, help="max songs (bench defaults to [bench].songs)")
     args = parser.parse_args(argv)
     cfg = vc.load_config()
@@ -436,6 +466,7 @@ def main(argv: list[str] | None = None) -> None:
         "aliases": lambda: aliases(cfg, songs(limit)),
         "bench": lambda: report(bench(cfg, songs(min(limit, cfg["bench"]["songs"]))), cfg),
         "graphs": graphs,
+        "vocals": lambda: vocals(limit),
     }
     steps[args.command]()
 

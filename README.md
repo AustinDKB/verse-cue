@@ -30,7 +30,7 @@ a slide by hand, verse-cue notices the new uuid and starts over.
 4. `verse-cue --setup` — pick your vocal input, confirm the port
 5. `verse-cue`
 
-Optional: `verse-cue-harvest bench` picks the best model and window for your hardware (needs `ffmpeg` and `yt-dlp` on PATH).
+Optional: `verse-cue-harvest vocals` writes `data/vocals/` stems (Demucs; mixes stay for alias mining). Then `verse-cue-harvest bench` prefers those stems (needs `ffmpeg` and `yt-dlp` on PATH).
 
 ## Measured
 

@@ -44,8 +44,17 @@ def test_main_dispatches(monkeypatch, tmp_path):
     monkeypatch.setattr(hv, "bench", lambda cfg, wavs: calls.append(("bench", len(wavs))) or [])
     monkeypatch.setattr(hv, "report", lambda rows, cfg: calls.append(("report", rows)))
     monkeypatch.setattr(hv, "graphs", lambda: calls.append(("graphs",)))
+    monkeypatch.setattr(hv, "vocals", lambda limit: calls.append(("vocals", limit)))
     hv.main(["download", "--limit", "3"])
     hv.main(["aliases", "--limit", "2"])
     hv.main(["bench"])  # limit defaults to [bench].songs = 5
     hv.main(["graphs"])
-    assert calls == [("download", 3), ("aliases", 2), ("bench", 5), ("report", []), ("graphs",)]
+    hv.main(["vocals", "--limit", "4"])
+    assert calls == [
+        ("download", 3),
+        ("aliases", 2),
+        ("bench", 5),
+        ("report", []),
+        ("graphs",),
+        ("vocals", 4),
+    ]
