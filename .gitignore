@@ -8,3 +8,5 @@ htmlcov/
 metrics.jsonl
 verse-cue.auto.toml
 .codegraph/
+docs/metrics/bench.json
+*.wav

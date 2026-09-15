@@ -1,0 +1,52 @@
+# verse-cue configuration. Everything the runtime and the harvest tool read lives here.
+# verse-cue.auto.toml (written by `verse-cue-harvest bench`) overrides [model] when present.
+
+[propresenter]
+host = "127.0.0.1"
+port = 1025
+
+[audio]
+device = ""            # substring of the input device name; set by `verse-cue --setup`
+sample_rate = 16000
+
+[model]
+name = ""              # "" -> chosen from [hardware]; else a faster-whisper model id
+compute_type = "auto"
+window_s = 4.0         # seconds of audio per transcription
+hop_s = 1.0            # seconds between transcriptions; must be >= window_s / RTF
+beam_size = 1
+prompt_mode = "none"   # none | slide | hotwords  (bias the decoder with the slide text)
+
+[decide]
+lead_s = 0.3           # fire this many seconds before the predicted start of the last word
+guard_s = 0.3          # ignore words heard within this many seconds of entering a slide (bleed)
+default_sec_per_word = 0.45
+rate_bounds = [0.15, 1.5]  # clamp for the measured seconds-per-word
+min_matched = 4        # fewer matched words than min(this, ceil(n/2)) never fires
+fuzzy_cutoff = 0.8     # difflib ratio for words not in the alias table
+
+[blank]
+min_speech_ms = 300
+blank_settle_s = 1.0   # ignore voice this long after entering a blank slide
+
+[hardware]
+# VRAM GB threshold -> [threshold, model, compute_type]; first row whose threshold <= VRAM wins.
+gpu = [[8, "large-v3-turbo", "float16"], [4, "distil-large-v3", "int8_float16"], [0, "small.en", "int8"]]
+cpu = ["small.en", "int8"]
+
+[alias]
+model = "tiny.en"
+temperatures = [0.6, 1.0]
+min_count = 2
+max_per_word = 20
+
+[bench]
+models = ["tiny.en", "base.en", "small.en", "distil-large-v3", "large-v3-turbo"]
+window_s = [3.0, 4.0, 5.0]
+hop_s = [0.5, 1.0]
+prompt_mode = ["none", "slide", "hotwords"]
+songs = 5
+lines_per_slide = 2
+blank_gap_s = 8.0
+min_rtf = 4.0
+max_false_pct = 5.0
