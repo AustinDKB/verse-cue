@@ -1,0 +1,9 @@
+Someone has to click Next all service. verse-cue does that from the vocal mic.
+
+It reads the lyric already on screen, listens, and fires a little before the last word. Early beats late.
+
+Three moving parts: speech to text with word times, a match against the slide, and ProPresenter's next-slide call.
+
+Blank instrumental slides wait for voice, then go.
+
+On this machine the bench picked a setup that stayed inside a fraction of a second of the lyric line. Try it on a rehearsal. Send the metrics file back.
