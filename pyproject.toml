@@ -88,7 +88,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "PLR2004", "ARG", "SLF001", "FBT", "E501", "PTH"]
+"tests/*" = ["S101", "PLR2004", "ARG", "SLF001", "FBT", "E501", "PTH", "PT018"]
 
 [tool.complexipy]
 paths = ["verse_cue.py", "harvest.py"]
