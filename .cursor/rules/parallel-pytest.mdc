@@ -1,0 +1,25 @@
+---
+description: Agents must run the full pytest suite in parallel. No subsets, no serial runs.
+alwaysApply: true
+---
+
+# Parallel full test suite
+
+When you run tests, run the full suite in parallel. The only allowed pytest command is:
+
+```bash
+uv run pytest
+```
+
+`pyproject.toml` addopts already set `-n auto` (pytest-xdist) and coverage. Do not override that.
+
+Do not:
+
+- Pass a file, directory, or node id (`tests/test_foo.py`, `tests/test_foo.py::test_bar`)
+- Filter with `-k`, `-m`, `--lf`, `--ff`, `--sw`, or `-x`
+- Disable workers (`-n0`, `-n 0`, `-n 1`, `-p no:xdist`)
+- Clear addopts (`-o addopts=`, `--override-ini addopts=`)
+
+A subset or a serial run is not a completed check. If a single test failed, still re-run `uv run pytest`.
+
+E2E files under `tests/e2e/` are skipped unless the app is up. Do not replace the suite with an e2e file plus `-o addopts=`.

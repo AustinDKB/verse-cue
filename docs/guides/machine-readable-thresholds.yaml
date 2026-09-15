@@ -1,0 +1,195 @@
+# Metrics Against Slop — default threshold bands
+# Units: see docs/guides/metrics-against-slop.md
+# Policy: warn_only_days before fail; allowlists required for generated paths
+
+version: "1.1.0"
+product_example: Shopapi
+rollout:
+  warn_only_days: 0
+  fail_after: "2026-09-03"
+  pair_with:
+    - ruff
+    - complexipy
+    - radon
+  do_not_replace_local_linters: true
+
+allowlists:
+  paths:
+    - "**/migrations/**"
+    - "**/generated/**"
+    - "**/lockfiles/**"
+    - "**/*_pb2.py"
+  symbols:
+    composition_roots:
+      - "main"
+      - "app.main"
+      - "router"
+      - "create_app"
+  patterns:
+    - kind: flat_match_table
+      allow_high_cyclomatic: true
+      max_cognitive: 5
+    - kind: data_table_file
+      allow_over_token_cap: true
+
+roles:  # local bands by function role; graph gates apply to every role
+  A: {name: entry_orchestrator, cognitive_max: 12, cyclomatic_max: 12, nest_max: 2}
+  B: {name: domain_helper,      cognitive_max: 8,  cyclomatic_max: 8,  nest_max: 2}
+  C: {name: leaf_predicate,     cognitive_max: 4,  cyclomatic_max: 5,  nest_max: 1, flat_match_cognitive_max: 5}
+  D: {name: table_data,         exempt_local: true}
+  E: {name: generated_migration, exempt_local: true}
+
+graphs:
+  kinds:
+    - call
+    - module
+    - type
+  rule: never_mix_kinds_in_one_score
+  gate_scope: pr_subgraph  # not repo-wide averages
+
+function_control_flow:
+  cognitive_complexity:
+    warn_min: 8
+    fail_gt: 15  # or team_fail_gt: 10
+    notes: "Calls are free; nesting costs; match often cheap; recursion not free"
+  cyclomatic_complexity:
+    warn_min: 8
+    fail_gt: 12  # band 10–15; start 12
+    notes: "Flat match/elif may exceed; allowlist pattern"
+  max_nesting_depth:
+    warn_gte: 3
+    fail_gt: 4
+  branches_per_function:
+    warn_gt: 8
+    fail_gt: 12
+    ruff: PLR0912
+  returns_per_function:
+    warn_gt: 4
+    fail_gt: 6
+    ruff: PLR0911
+  statements_per_function:
+    warn_gt: 40
+    fail_gt: 50
+    ruff: PLR0915
+
+size:
+  file_tokens:
+    warn_gt: 2500
+    fail_gt: 4000
+    chars_per_token_approx: 4
+  file_sloc:
+    warn_gt: 250
+    fail_gt: 450  # band 400–500
+  llm_edit_budget:
+    comfortable_sloc_min: 300
+    comfortable_sloc_max: 600
+    comfortable_tokens_min: 3000
+    comfortable_tokens_max: 6000
+  function_length_sloc:
+    warn_gt: 40
+    fail_gt: 60
+  functions_per_file:
+    smell_if_fan_in_1_ratio_gt: 0.5
+  public_methods_per_class:
+    smell_new_facade_for_single_route: true
+
+node_graph:
+  new_private_fan_in:
+    fail_if:
+      fan_in_eq: 1
+      max_body_statements: 4
+      visibility: private
+    warn_if:
+      fan_in_eq: 1
+    unless: public_entry
+  fan_out_excluding_stdlib:
+    warn_gt: 6
+    fail_gt: 8
+  depth_from_public_entry:
+    warn_eq: 3
+    fail_gt: 3  # depth 4+ fails; depth 3 warns
+  impact_depth_k: 3
+  betweenness:
+    scope: pr_subgraph_only
+  isolates_new:
+    fail_gt: 0
+  henry_kafura_ifc:
+    formula: "length * (fan_in * fan_out) ** 2"
+    teaching_only: true  # gate on components, not raw IFC alone
+  fan_in_counts: in_repo_callers_only  # ignore framework wiring unless indexed
+
+diff_graph:
+  delta_e_over_delta_v:
+    warn_gt: 2.0
+    fail_gt: 2.5
+    require_fan_in_1_context: true  # S2 may have high ratio with FI1=0 — allow
+  new_cycles:
+    fail_gt: 0
+  diameter_new_call_path:
+    warn_gt: 3
+    fail_gt: 4
+  average_degree:
+    informational: true
+  density:
+    informational: true
+  propagation_cost:
+    informational: true
+  primary_ladder_gates:
+    - new_private_fan_in_1
+    - depth_from_entry
+    - new_cycles
+    - affected_tests
+
+martin_package:
+  informational: true
+  instability: "I = Ce / (Ca + Ce)"
+  distance: "D = abs(A + I - 1)"
+
+architecture_shapes:
+  call_depth_budget_from_public_entry: 3
+  max_new_abstract_types_per_pr: 0  # unless domain concept already exists
+  max_new_types_per_pr:
+    fail_gt: 1
+    unless_domain_concept_exists: true
+  forbidden_ceremony_name_globs:
+    - "*Factory"
+    - "*Manager"
+    - "Base*"
+  protocol_with_one_impl: fail
+  dead_code_new_isolates: fail
+  tests_only_mocking_private_helpers: fail
+  duplication_gate: warn
+  forced_generic_gate: warn  # need both
+
+conflict_resolution:
+  - when: local_cognitive_rose_and_graph_improved
+    prefer: graph
+    action: usually_merge
+  - when: protocol_plus_one_impl
+    action: reject_ceremony
+  - when: flat_match_high_cyclo
+    action: allow
+  - when: data_table_over_token_cap
+    action: allow
+  - when: composition_root_high_fan_out
+    action: allowlist_symbol
+
+tie_break_rubric:
+  - fewer_new_symbols
+  - fewer_files
+  - shallower_depth
+  - domain_names
+  - tests_through_public_api
+
+codegraph_commands:  # installed CLI (codegraph 'node'/'query'); degrees come from the SQLite index
+  symbol_lookup: "codegraph query <name> --json"
+  trail: "codegraph node <name>"
+  fan_in_fan_out_depth: "scripts/slop_gate.py reads .codegraph/codegraph.db (edges.kind = 'calls')"
+  inventory_not_degrees: [query, status]
+
+shopapi_calibration:
+  reject_example: S1
+  accept_example: S2
+  derived_rules:
+    - depth_from_entry_fail_gt: 3
+    - new_private_fan_in_1_tiny_body: fail
