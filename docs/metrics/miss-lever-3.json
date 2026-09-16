@@ -1,0 +1,23 @@
+{
+  "lever": "3",
+  "tail_words": 3,
+  "first_half": true,
+  "min_matched": 3,
+  "name": "small.en",
+  "window_s": 4.0,
+  "hop_s": 1.0,
+  "prompt_mode": "none",
+  "n_aliases": 138,
+  "n": 185,
+  "median_delta": -1.4315672380014348,
+  "p90_abs_delta": 10.029796516599982,
+  "early_pct": 56.2,
+  "late_pct": 7.0,
+  "missed_pct": 28.1,
+  "false_pct": 11.9,
+  "rtf": 18.71,
+  "n_songs": 6,
+  "elapsed_s": 135.4,
+  "gpu": "NVIDIA L40S",
+  "pod": "2p52b7wwci3vwj"
+}
