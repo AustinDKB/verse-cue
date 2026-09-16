@@ -1,0 +1,22 @@
+{
+  "cell": "B",
+  "name": "small.en",
+  "window_s": 6.0,
+  "deadline_fire": true,
+  "hop_s": 1.0,
+  "prompt_mode": "none",
+  "tail_words": 3,
+  "first_half": true,
+  "min_matched": 4,
+  "n_aliases": 138,
+  "n": 203,
+  "median_delta": -22.361,
+  "p90_abs_delta": 51.715,
+  "early_pct": 93.6,
+  "late_pct": 1.0,
+  "missed_pct": 3.9,
+  "false_pct": 88.2,
+  "rtf": 7.54,
+  "n_songs": 6,
+  "elapsed_s": 364.2
+}

@@ -94,17 +94,17 @@ slow rate doesn’t sleep through the slide end.
 If we have any matches and the slide has been up longer than
 `n_words × default_sec_per_word` with no fire, click anyway.
 
-**Simulating now (combo B)** with small.en, window 6, tight gates. Flag
-`deadline_fire` is off in production toml; the live cell turns it on.
-See `docs/metrics/both-combos.md`.
+**Simulated (combo B, L4, small.en window 6, tight gates):** miss **3.9**,
+false **88.2**, p90 51.7, median −22s. The 0.45s/word deadline clicks before
+half the truth slide. Unusable. See `docs/metrics/both-combos.md`.
 
 ### 6. Longer Whisper window (5–8s)
 
 More of the line in one pass → better chance the tail is in the transcript.
 
-**Simulating now (combo B)** as window **6** paired with deadline fire, not
-as a window-only cell. Packed grid tried 3/4/5 on mixed models (RTF there is
-not live). No 1-replica small.en 5s vs 4s miss compare yet.
+**Simulated (combo B) paired with deadline**, not as a window-only cell.
+Miss 3.9 / false 88.2 is the deadline, not proof the 6s window helped.
+Window-6-only is the next split.
 
 ### 7. `prompt=slide` (or hotwords)
 
@@ -132,9 +132,10 @@ Better WER so the tail is more likely to match.
 Size cuts miss when the gate is loose. After a tight last-3 gate, small.en
 already hears most of what the gate will accept.
 
-**Simulating now (combo A):** distil-large-v3 + the current tight rate-wait
-gates (tail=3, first-half on, min_matched=4, hop 1). That pairing was the
-missing cell. See `docs/metrics/both-combos.md`.
+**Simulated (combo A):** distil-large-v3 + tight rate-wait gates (tail=3,
+first-half on, min_matched=4, hop 1). **false 13.3 / miss 30.5 / p90 6.5 /
+rtf 5.7.** False held; miss did not improve vs 25.9. Distil behind the last-3
+wall is not the miss lever. See `docs/metrics/both-combos.md`.
 
 ### 9. Offset streams / extra replicas / hop 0.5
 
