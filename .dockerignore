@@ -1,0 +1,24 @@
+# git / caches
+.git
+.venv
+__pycache__
+**/*.pyc
+.pytest_cache
+.coverage
+htmlcov
+.cursor
+.agents
+.pi
+vendor
+media
+docs
+tests
+*.md
+!README.md
+
+# do not ship local CPU bench leftovers
+verse-cue.auto.toml
+metrics.jsonl
+data/vocals
+data/_demucs
+data/**/_demucs

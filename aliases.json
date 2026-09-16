@@ -1,0 +1,901 @@
+{
+ "and": {
+  "in": 35,
+  "it": 4,
+  "the": 4,
+  "a": 3,
+  "it's": 3,
+  "that": 2,
+  "of": 2,
+  "i": 2,
+  "if": 2,
+  "i'm": 2,
+  "let": 2,
+  "when": 2
+ },
+ "in": {
+  "and": 19,
+  "for": 3,
+  "new": 2,
+  "believe": 2
+ },
+ "your": {
+  "you": 19,
+  "you're": 5,
+  "the": 4,
+  "a": 3,
+  "to": 3,
+  "till": 2
+ },
+ "'cause": {
+  "cause": 18,
+  "because": 4,
+  "cuz": 2
+ },
+ "a": {
+  "the": 15,
+  "i'm": 2,
+  "it": 2,
+  "mr": 2,
+  "your": 2
+ },
+ "the": {
+  "a": 14,
+  "this": 7,
+  "i": 4,
+  "you": 3,
+  "oh": 2,
+  "see": 2,
+  "and": 2,
+  "that": 2,
+  "to": 2,
+  "me": 2,
+  "no": 2
+ },
+ "our": {
+  "i": 14,
+  "the": 3,
+  "my": 2,
+  "oh": 2,
+  "are": 2
+ },
+ "is": {
+  "it's": 13,
+  "i": 3,
+  "this": 3,
+  "isn't": 2,
+  "his": 2,
+  "i'm": 2,
+  "us": 2
+ },
+ "sing": {
+  "see": 13,
+  "say": 3,
+  "still": 2
+ },
+ "i'll": {
+  "i": 13,
+  "our": 4,
+  "i'm": 2,
+  "i've": 2,
+  "on": 2
+ },
+ "o": {
+  "oh": 13,
+  "of": 2
+ },
+ "i": {
+  "i'll": 12,
+  "i'm": 6,
+  "that": 3,
+  "i've": 2,
+  "a": 2,
+  "my": 2,
+  "love": 2,
+  "be": 2,
+  "back": 2
+ },
+ "you've": {
+  "you": 12
+ },
+ "will": {
+  "we'll": 11,
+  "well": 3,
+  "were": 2,
+  "a": 2,
+  "when": 2,
+  "would": 2
+ },
+ "all": {
+  "oh": 10,
+  "on": 4,
+  "don't": 2,
+  "know": 2,
+  "off": 2
+ },
+ "he": {
+  "it": 9,
+  "you": 6
+ },
+ "can't": {
+  "can": 8
+ },
+ "comin'": {
+  "coming": 8
+ },
+ "me": {
+  "be": 7,
+  "the": 2
+ },
+ "who": {
+  "you": 7,
+  "that": 5,
+  "to": 3,
+  "you're": 2,
+  "i'm": 2
+ },
+ "can": {
+  "can't": 7,
+  "cares": 2
+ },
+ "light": {
+  "love": 6,
+  "life": 4
+ },
+ "you": {
+  "your": 6,
+  "we": 5,
+  "ya": 2,
+  "it": 2,
+  "me": 2,
+  "is": 2
+ },
+ "that": {
+  "and": 6,
+  "that's": 4,
+  "the": 4,
+  "but": 3,
+  "then": 3,
+  "it": 2,
+  "they": 2,
+  "happy": 2,
+  "back": 2,
+  "let's": 2
+ },
+ "lamb": {
+  "land": 6
+ },
+ "could": {
+  "can": 6
+ },
+ "set": {
+  "said": 5
+ },
+ "god": {
+  "got": 5,
+  "out": 4,
+  "you": 2
+ },
+ "are": {
+  "i": 5,
+  "were": 3,
+  "i'm": 2
+ },
+ "loved": {
+  "love": 5
+ },
+ "lead": {
+  "leave": 5
+ },
+ "because": {
+  "cause": 4
+ },
+ "it": {
+  "and": 4,
+  "in": 3,
+  "you": 2,
+  "i'm": 2
+ },
+ "days": {
+  "day": 4
+ },
+ "i've": {
+  "i": 4
+ },
+ "'til": {
+  "till": 4
+ },
+ "when": {
+  "and": 4,
+  "win": 2,
+  "but": 2
+ },
+ "ransomed": {
+  "ransom": 4
+ },
+ "to": {
+  "too": 4,
+  "through": 3,
+  "you": 2,
+  "i'm": 2
+ },
+ "has": {
+  "is": 4
+ },
+ "for": {
+  "before": 4,
+  "from": 2,
+  "oh": 2
+ },
+ "save": {
+  "say": 4
+ },
+ "stand": {
+  "stay": 4,
+  "standing": 2
+ },
+ "my": {
+  "the": 4,
+  "i": 3,
+  "mind": 2,
+  "no": 2,
+  "i'm": 2,
+  "you": 2
+ },
+ "life": {
+  "light": 4,
+  "love": 3,
+  "lie": 2
+ },
+ "lift": {
+  "lived": 4,
+  "live": 4,
+  "left": 2
+ },
+ "of": {
+  "i'm": 4,
+  "on": 4,
+  "love": 3,
+  "i": 3,
+  "a": 3,
+  "the": 3,
+  "to": 3,
+  "all": 2
+ },
+ "failed": {
+  "fill": 4
+ },
+ "seen": {
+  "see": 4
+ },
+ "oh": {
+  "of": 4,
+  "the": 3,
+  "we're": 2
+ },
+ "seek": {
+  "see": 4
+ },
+ "know": {
+  "love": 4
+ },
+ "new": {
+  "the": 4,
+  "no": 3,
+  "me": 2,
+  "not": 2
+ },
+ "but": {
+  "that": 4
+ },
+ "son": {
+  "sun": 4,
+  "year": 2
+ },
+ "would": {
+  "will": 4,
+  "what": 2
+ },
+ "love": {
+  "life": 4,
+  "i": 2,
+  "i'll": 2
+ },
+ "yeah": {
+  "you": 4
+ },
+ "lungs": {
+  "long": 3
+ },
+ "fall": {
+  "for": 3
+ },
+ "hands": {
+  "head": 3
+ },
+ "have": {
+  "will": 3,
+  "love": 2,
+  "had": 2,
+  "at": 2
+ },
+ "make": {
+  "made": 3
+ },
+ "off": {
+  "out": 3
+ },
+ "kings": {
+  "keys": 3,
+  "the": 2
+ },
+ "as": {
+  "his": 3,
+  "is": 2
+ },
+ "ebenezer": {
+  "ebony": 3
+ },
+ "forever": {
+  "for": 3
+ },
+ "endures": {
+  "enters": 3
+ },
+ "praise": {
+  "pray": 3,
+  "phrase": 3,
+  "break": 2,
+  "play": 2
+ },
+ "great": {
+  "crazy": 3,
+  "brave": 2
+ },
+ "song": {
+  "sun": 3
+ },
+ "whom": {
+  "who": 3
+ },
+ "been": {
+  "be": 3
+ },
+ "come": {
+  "you": 3
+ },
+ "word": {
+  "world": 3
+ },
+ "searched": {
+  "search": 3
+ },
+ "mourning": {
+  "morning": 3
+ },
+ "shout": {
+  "shot": 3
+ },
+ "sin": {
+  "see": 3
+ },
+ "christ": {
+  "cry": 3
+ },
+ "wholly": {
+  "holy": 3
+ },
+ "his": {
+  "is": 3,
+  "he's": 2,
+  "it": 2,
+  "the": 2,
+  "kiss": 2,
+  "last": 2
+ },
+ "mountains": {
+  "mountain": 3
+ },
+ "bring": {
+  "we": 3,
+  "be": 2,
+  "i'm": 2,
+  "ring": 2
+ },
+ "wine": {
+  "i": 3,
+  "light": 2,
+  "a": 2
+ },
+ "let": {
+  "and": 3,
+  "the": 2
+ },
+ "lord": {
+  "but": 3,
+  "for": 2
+ },
+ "run": {
+  "ran": 3
+ },
+ "fails": {
+  "fail": 3
+ },
+ "mercies": {
+  "mercy": 3
+ },
+ "paid": {
+  "made": 3
+ },
+ "leper's": {
+  "leper": 3
+ },
+ "raised": {
+  "raise": 3
+ },
+ "one": {
+  "world": 3
+ },
+ "stone": {
+  "sun": 3
+ },
+ "than": {
+  "that": 3
+ },
+ "you'll": {
+  "you": 3
+ },
+ "what": {
+  "but": 3
+ },
+ "at": {
+  "on": 3,
+  "out": 2
+ },
+ "reigns": {
+  "raised": 3
+ },
+ "fill": {
+  "feel": 3
+ },
+ "stomp": {
+  "stop": 3
+ },
+ "give": {
+  "can": 2,
+  "can't": 2
+ },
+ "hope": {
+  "up": 2
+ },
+ "we": {
+  "you": 2,
+  "we're": 2
+ },
+ "pour": {
+  "throw": 2
+ },
+ "with": {
+  "and": 2,
+  "will": 2,
+  "well": 2,
+  "if": 2
+ },
+ "out": {
+  "up": 2,
+  "fan": 2
+ },
+ "led": {
+  "let": 2
+ },
+ "roar": {
+  "oh": 2,
+  "fall": 2
+ },
+ "up": {
+  "i'm": 2,
+  "are": 2
+ },
+ "brave": {
+  "free": 2,
+  "pray": 2
+ },
+ "unworthy": {
+  "away": 2
+ },
+ "head": {
+  "hand": 2
+ },
+ "stain": {
+  "state": 2
+ },
+ "not": {
+  "i": 2
+ },
+ "chains": {
+  "change": 2
+ },
+ "coming": {
+  "comin'": 2,
+  "come": 2
+ },
+ "jesus": {
+  "hear": 2,
+  "music": 2
+ },
+ "it's": {
+  "because": 2
+ },
+ "chose": {
+  "choose": 2
+ },
+ "living": {
+  "moving": 2
+ },
+ "thou": {
+  "the": 2
+ },
+ "tune": {
+  "to": 2
+ },
+ "by": {
+  "with": 2
+ },
+ "sought": {
+  "taught": 2,
+  "saw": 2
+ },
+ "thy": {
+  "that": 2
+ },
+ "tarry": {
+  "terry": 2
+ },
+ "wander": {
+  "wonder": 2
+ },
+ "mine": {
+  "air": 2
+ },
+ "fear": {
+  "feel": 2
+ },
+ "mighty": {
+  "muddy": 2
+ },
+ "strong": {
+  "true": 2
+ },
+ "highest": {
+  "house": 2,
+  "best": 2
+ },
+ "them": {
+  "the": 2
+ },
+ "darkness": {
+  "must": 2
+ },
+ "tries": {
+  "try": 2
+ },
+ "trembles": {
+  "trimbles": 2
+ },
+ "alone": {
+  "know": 2
+ },
+ "go": {
+  "gone": 2
+ },
+ "where": {
+  "when": 2,
+  "know": 2
+ },
+ "move": {
+  "know": 2
+ },
+ "heights": {
+  "highs": 2
+ },
+ "majesty": {
+  "magic": 2
+ },
+ "sings": {
+  "seems": 2,
+  "is": 2
+ },
+ "carried": {
+  "carry": 2
+ },
+ "cross": {
+  "clock": 2
+ },
+ "above": {
+  "the": 2
+ },
+ "names": {
+  "day": 2
+ },
+ "water": {
+  "music": 2
+ },
+ "prince": {
+  "count": 2
+ },
+ "fills": {
+  "feels": 2
+ },
+ "crush": {
+  "crushed": 2
+ },
+ "armies": {
+  "please": 2
+ },
+ "through": {
+  "to": 2
+ },
+ "generations": {
+  "children": 2
+ },
+ "why": {
+  "while": 2
+ },
+ "fail": {
+  "said": 2,
+  "don't": 2
+ },
+ "firm": {
+  "perfect": 2
+ },
+ "he's": {
+  "it's": 2
+ },
+ "heaven": {
+  "phone": 2
+ },
+ "too": {
+  "even": 2,
+  "to": 2
+ },
+ "sinner": {
+  "gonna": 2
+ },
+ "face": {
+  "faith": 2
+ },
+ "they'd": {
+  "they": 2
+ },
+ "yet": {
+  "out": 2
+ },
+ "night": {
+  "light": 2
+ },
+ "last": {
+  "lie": 2
+ },
+ "desire": {
+  "design": 2,
+  "need": 2
+ },
+ "let's": {
+  "you": 2
+ },
+ "him": {
+  "a": 2,
+  "it": 2
+ },
+ "there's": {
+  "this": 2
+ },
+ "control": {
+  "draw": 2
+ },
+ "promise": {
+  "promised": 2
+ },
+ "calling": {
+  "called": 2
+ },
+ "alive": {
+  "not": 2
+ },
+ "grave": {
+  "rain": 2
+ },
+ "was": {
+  "we'll": 2
+ },
+ "this": {
+  "the": 2
+ },
+ "bones": {
+  "oh": 2
+ },
+ "way": {
+  "away": 2
+ },
+ "be": {
+  "big": 2,
+  "make": 2
+ },
+ "amen": {
+  "i'm": 2,
+  "red": 2
+ },
+ "fire": {
+  "fight": 2
+ },
+ "never": {
+  "i": 2
+ },
+ "yours": {
+  "you": 2
+ },
+ "unknown": {
+  "i": 2
+ },
+ "call": {
+  "come": 2
+ },
+ "created": {
+  "create": 2
+ },
+ "made": {
+  "naked": 2,
+  "make": 2
+ },
+ "there": {
+  "they're": 2
+ },
+ "father's": {
+  "fathers": 2
+ },
+ "heart": {
+  "are": 2
+ },
+ "us": {
+  "this": 2,
+  "i'll": 2
+ },
+ "then": {
+  "this": 2
+ },
+ "trial": {
+  "child": 2
+ },
+ "trust": {
+  "just": 2
+ },
+ "anchor": {
+  "anger": 2
+ },
+ "name": {
+  "key": 2,
+  "day": 2
+ },
+ "kingdom": {
+  "king": 2
+ },
+ "cast": {
+  "just": 2
+ },
+ "laid": {
+  "let": 2
+ },
+ "died": {
+  "die": 2
+ },
+ "work": {
+  "word": 2
+ },
+ "holy": {
+  "whole": 2,
+  "okay": 2
+ },
+ "spirit": {
+  "escape": 2
+ },
+ "were": {
+  "are": 2
+ },
+ "say": {
+  "said": 2
+ },
+ "fix": {
+  "it's": 2
+ },
+ "won't": {
+  "will": 2
+ },
+ "saviour's": {
+  "savior's": 2
+ },
+ "am": {
+  "in": 2
+ },
+ "stripped": {
+  "straight": 2
+ },
+ "appear": {
+  "are": 2
+ },
+ "dresses": {
+  "stresses": 2
+ },
+ "lilies": {
+  "lily": 2
+ },
+ "ground": {
+  "he's": 2
+ },
+ "storm": {
+  "snow": 2
+ },
+ "here's": {
+  "he's": 2
+ },
+ "burn": {
+  "bring": 2,
+  "move": 2
+ },
+ "ever": {
+  "never": 2
+ },
+ "given": {
+  "giving": 2
+ },
+ "hold": {
+  "owe": 2
+ },
+ "fears": {
+  "feel": 2
+ },
+ "washed": {
+  "watched": 2
+ },
+ "lay": {
+  "play": 2
+ },
+ "worship": {
+  "shit": 2
+ },
+ "done": {
+  "been": 2
+ },
+ "sea": {
+  "see": 2
+ },
+ "songs": {
+  "stones": 2
+ },
+ "stepped": {
+  "still": 2
+ },
+ "calls": {
+  "called": 2
+ },
+ "place": {
+  "lead": 2
+ },
+ "quickly": {
+  "completely": 2
+ },
+ "who's": {
+  "is": 2
+ },
+ "late": {
+  "laid": 2
+ },
+ "same": {
+  "ain't": 2
+ },
+ "pain": {
+  "me": 2
+ },
+ "if": {
+  "it": 2
+ }
+}
