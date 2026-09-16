@@ -1,0 +1,22 @@
+{
+  "cell": "A",
+  "name": "distil-large-v3",
+  "window_s": 4.0,
+  "deadline_fire": false,
+  "hop_s": 1.0,
+  "prompt_mode": "none",
+  "tail_words": 3,
+  "first_half": true,
+  "min_matched": 4,
+  "n_aliases": 138,
+  "n": 203,
+  "median_delta": -1.662,
+  "p90_abs_delta": 6.517,
+  "early_pct": 56.2,
+  "late_pct": 4.4,
+  "missed_pct": 30.5,
+  "false_pct": 13.3,
+  "rtf": 5.7,
+  "n_songs": 6,
+  "elapsed_s": 438.7
+}
