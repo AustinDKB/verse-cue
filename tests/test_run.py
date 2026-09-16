@@ -23,15 +23,13 @@ def run_with(windows, pp, cfg, t_ends):
     return model, waits
 
 
-def test_fires_early_from_extrapolation(cfg):
-    # window_s=4, hop_s=1. The 5th window (t_end=5, window start 1.0) hears the first five words at 0.4 s/word:
-    # capture times 2.0, 2.4, 2.8, 3.2, 3.6 (all after the guard: entered 1.0 + guard_s 0.3).
+def test_opening_words_do_not_fire(cfg):
+    # first five words of an 11-word slide — still the first half; an operator would wait.
     windows = [[]] * 4 + [words_at([(1.0, "our"), (1.4, "god"), (1.8, "is"), (2.2, "an"), (2.6, "awesome")])]
     pp = ScriptedPP([("A", SLIDE), ("B", "something completely different here")])
     _, waits = run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
-    # predicted = 3.6 + 6*0.4 - lead 0.3 = 5.7; due because 5.7 <= now(5+) + hop 1; fire at max(5.7, now) = 5.7
-    assert pp.fires == [pytest.approx(5.7)]
-    assert waits == pp.fires
+    assert pp.fires == []
+    assert waits == []
 
 
 def test_identical_consecutive_slides_do_not_double_fire(cfg):

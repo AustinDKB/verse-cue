@@ -19,6 +19,7 @@ D = {
     "default_sec_per_word": 0.45,
     "rate_bounds": [0.15, 1.5],
     "min_matched": 4,
+    "tail_words": 6,
     "fuzzy_cutoff": 0.8,
 }
 M = {"name": "tiny.en", "compute_type": "int8", "window_s": 4.0, "hop_s": 1.0, "beam_size": 1, "prompt_mode": "none"}
