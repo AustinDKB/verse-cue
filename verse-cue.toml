@@ -24,6 +24,8 @@ default_sec_per_word = 0.45
 rate_bounds = [0.15, 1.5]  # clamp for the measured seconds-per-word
 min_matched = 4        # fewer matched words than min(this, ceil(n/2)) never fires
 tail_words = 3         # last match must be in the last N words (how an operator waits to click)
+first_half = true      # also require last match past the midpoint of the slide text
+deadline_fire = false  # if any words matched, click after n_words * default_sec_per_word
 fuzzy_cutoff = 0.8     # difflib ratio for words not in the alias table
 
 [blank]
