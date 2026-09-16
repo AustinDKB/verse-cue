@@ -1,0 +1,46 @@
+{
+  "n_aliases": 138,
+  "elapsed_s": 870,
+  "gpu": "A40",
+  "pod": "tnz2vo420yyjmm",
+  "tail_words": 3,
+  "hop_s": 0.5,
+  "rate_wait": true,
+  "first_half_gate": true,
+  "rows": [
+    {
+      "name": "tiny.en",
+      "window_s": 4.0,
+      "hop_s": 0.5,
+      "prompt_mode": "none",
+      "tail_words": 3,
+      "n_aliases": 138,
+      "n": 185,
+      "median_delta": -1.580123926810927,
+      "p90_abs_delta": 11.928640654638421,
+      "early_pct": 47.6,
+      "late_pct": 7.0,
+      "missed_pct": 35.7,
+      "false_pct": 14.1,
+      "rtf": 7.22,
+      "n_songs": 6
+    },
+    {
+      "name": "small.en",
+      "window_s": 4.0,
+      "hop_s": 0.5,
+      "prompt_mode": "none",
+      "tail_words": 3,
+      "n_aliases": 138,
+      "n": 185,
+      "median_delta": -1.7099999999999795,
+      "p90_abs_delta": 12.104419907059526,
+      "early_pct": 57.3,
+      "late_pct": 7.0,
+      "missed_pct": 25.9,
+      "false_pct": 14.6,
+      "rtf": 4.87,
+      "n_songs": 6
+    }
+  ]
+}

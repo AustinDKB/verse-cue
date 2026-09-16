@@ -76,14 +76,16 @@ Packed pass-1 (not live RTF) showed the same shape: small.en miss 24.9 / false
 ## How to move both false and miss
 
 Prefer early to miss. Size bump alone trades miss for false. The combination
-that can move both:
+that actually moved both versus original dedicated tiny (26.5 / 28.6 / 38):
 
-1. Hear better: `small.en` or `distil-large-v3` (both still >> 4× RTF).
-2. Click later: `tail_words=6`.
-3. Do not extrapolate from the first tail match. Fire from a word actually
-   heard in the tail (`last heard start − lead_s`).
+1. Hear better: **`small.en`** (still ~9× RTF). Distil adds little miss and
+   more false.
+2. `tail_words=6` so opening words cannot arm a click.
+3. Keep a last-word time estimate if you care about false more than miss.
+   Firing at the first tail hearing (no extrapolate) made tiny earlier.
 
-Do not use `prompt=slide`. Hop 0.5 still fits on tiny (~12×) if miss stays high.
+Do not use `prompt=slide`. Hop 0.5 still fits on tiny; small.en average stays
+above 4× but two of six songs dipped under (3.6–3.9).
 
 ## tiny / small / distil + tail_words=6, no remaining-word extrapolation
 
@@ -106,6 +108,30 @@ dropping extrapolation made tiny *earlier* (false 19.5→28.1). Clicking at the
 first tail hearing is sooner than guessing the last-word time. Distil still
 wins miss; tiny+extrapolate still wins false.
 
-`small.en` is the best single point if the goal is improve both versus the
-original live tiny config. Going larger than small mostly buys a little more
-miss at worse false. All three still smash the 4× RTF gate.
+## rate wait + tail_words=3 + first-half + hop=0.5
+
+**What changed.** The previous small.en live pass fired the instant a match
+landed anywhere in the last 6 words (`t_heard − 0.3s`). That cut miss but
+left false at 24.3%. This pass puts the wait back: fire time is
+`last_heard + (words still left)×clamped singing rate − 0.3s`. A later,
+closer-to-the-end match overwrites that time (`decide` keeps the newest
+estimate). Arming also moved later: last match must be in the last 3 words
+*and* past the midpoint of the slide text. Hop 0.5s so we sample the tail
+twice as often. Model stayed `small.en` (tiny as control).
+
+**Why.** False Nexts were the premature-timer problem, not WER. Waiting from
+a real tail hearing is how an operator clicks. `small.en` already hears
+enough of the tail that miss should hold while false drops.
+
+**Result.** A40, `window=4 prompt=none`, aliases on. Raw rows:
+`docs/metrics/small-improve.json`. 870 s wall.
+
+| model | rtf | false% | miss% | p90 | vs previous small |
+|---|---:|---:|---:|---:|---|
+| tiny.en | 7.22 | 14.1 | 35.7 | 11.9 | — |
+| **small.en** | 4.87 | **14.6** | 25.9 | 12.1 | false 24.3→14.6, miss 24.9→25.9, p90 11.9→12.1 |
+
+False almost halved; miss unchanged. tiny edges false by 0.5 and gives back
+10 miss points. Live pick: **small.en + these gates**. Prefer hop 1.0 unless
+every song must only be sampled at 0.5s — two hop-0.5 songs ran 3.64× and
+3.91×, under the official 4× floor, while the average was 4.87×.
