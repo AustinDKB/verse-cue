@@ -1,0 +1,43 @@
+{
+  "n_aliases": 138,
+  "elapsed_s": 192,
+  "gpu": "L4",
+  "pod": "ago6aolqw37tqj",
+  "tail_words": 6,
+  "rows": [
+    {
+      "name": "tiny.en",
+      "window_s": 4.0,
+      "hop_s": 1.0,
+      "prompt_mode": "none",
+      "tail_words": 6,
+      "n_aliases": 138,
+      "n": 185,
+      "median_delta": -1.8730346767324981,
+      "p90_abs_delta": 19.94670588235294,
+      "early_pct": 50.3,
+      "late_pct": 8.6,
+      "missed_pct": 33.0,
+      "false_pct": 19.5,
+      "rtf": 28.95,
+      "n_songs": 6
+    },
+    {
+      "name": "tiny.en",
+      "window_s": 4.0,
+      "hop_s": 1.0,
+      "prompt_mode": "slide",
+      "tail_words": 6,
+      "n_aliases": 138,
+      "n": 185,
+      "median_delta": -6.6297137001901945,
+      "p90_abs_delta": 37.68427345520259,
+      "early_pct": 82.7,
+      "late_pct": 1.6,
+      "missed_pct": 14.1,
+      "false_pct": 60.5,
+      "rtf": 24.13,
+      "n_songs": 6
+    }
+  ]
+}
