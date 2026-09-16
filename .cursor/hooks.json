@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "rtk hook cursor",
+        "matcher": "Shell"
+      },
+      {
+        "command": "python3 .cursor/hooks/force-parallel-pytest.py",
+        "matcher": "Shell",
+        "failClosed": true
+      },
+      {
+        "command": ".cursor/hooks/protect-pyproject.py",
+        "matcher": "Write|StrReplace|Delete|EditNotebook",
+        "failClosed": true
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/protect-pyproject.py",
+        "matcher": "pyproject\\.toml",
+        "failClosed": true
+      },
+      {
+        "command": "python3 .cursor/hooks/force-parallel-pytest.py",
+        "matcher": "pytest",
+        "failClosed": true
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": "vendor/superpowers/hooks/run-hook.cmd session-start"
+      }
+    ]
+  }
+}

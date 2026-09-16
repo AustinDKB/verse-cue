@@ -1,0 +1,74 @@
+# Excerpt: anti-slop / quality gates for a consuming project.
+# Merge into .pre-commit-config.yaml. Adjust `files:` globs to your tree.
+# Ledgers (docs/metrics/**) are created by record_* scripts in the consumer —
+# this toolkit does not ship history files.
+
+default_language_version:
+  python: python3.12
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/astral-sh/ty-pre-commit
+    rev: v0.0.68
+    hooks:
+      - id: ty
+
+  - repo: local
+    hooks:
+      - id: complexipy
+        name: complexipy (max complexity 10)
+        entry: uv run complexipy
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^(app|tests|main\.py)
+
+      - id: radon-gates
+        name: radon gates
+        entry: uv run python scripts/check_radon_gates.py
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^(app|tests|main\.py)
+
+      - id: slop-gate
+        name: slop gate C1 (staged defs; fail on DENY)
+        entry: uv run python scripts/slop_gate.py
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^app/
+        verbose: true
+
+      - id: record-halstead
+        name: record Halstead metrics (report-only)
+        entry: uv run python scripts/record_halstead.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
+        verbose: true
+
+      - id: commit-metrics-row
+        name: commit metrics ledger has HEAD row
+        entry: uv run python scripts/check_commit_metrics_row.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+        verbose: true
+
+      - id: pytest-cov
+        name: pytest with coverage
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [pre-push]
+        files: ^(app|tests|main\.py|pyproject\.toml)

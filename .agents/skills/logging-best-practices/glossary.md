@@ -1,0 +1,30 @@
+# Glossary
+
+- **Access control**: The rules that decide who may read logs.
+- **Alert**: A notification triggered by a metric threshold.
+- **Audit log**: A record of who accessed what, and when.
+- **Black box recorder**: The model for logs detailed enough to replay any scenario.
+- **Canonical log line**: One structured entry per request that summarizes the whole journey.
+- **Cold storage**: Cheaper storage for logs that are accessed rarely.
+- **Critical operation**: A code path that needs monitoring, such as payment processing.
+- **Encryption at rest**: Protecting stored data.
+- **Encryption in transit**: Protecting data while it travels between systems.
+- **Error spike**: A period with an unusual number of failures.
+- **KPI**: A metric that matters to the application, such as checkout completion.
+- **Level filter**: The mechanism that keeps INFO and below out of production output.
+- **Load test**: A test that measures the application under expected traffic.
+- **Log level**: A severity class for a log event: INFO, WARNING, ERROR, or FATAL.
+- **Logging objective**: The purpose of a log statement, such as providing fixable context.
+- **Metric**: A count or measurement of how often something happens.
+- **Parseable JSON**: A text format for logs that tools can load as data.
+- **Redaction**: Removing sensitive values from log records.
+- **Representative sample**: A subset that still shows the shape of the full traffic.
+- **Request ID**: An identifier that links one request's log entries across services.
+- **Retention policy**: The rules for how long each class of log is kept.
+- **Sampling rate**: The fraction of log events that are stored, for example 20 percent.
+- **Security by obscurity**: Keeping sensitive information out of reach by not exposing it.
+- **Span**: One individual step inside a trace.
+- **Stack trace**: The call path that produced an error.
+- **Structured log**: A record with named fields that machines can parse.
+- **Trace**: The complete journey of a request across services.
+- **Verbosity**: The amount of detail a logger emits at a chosen level.

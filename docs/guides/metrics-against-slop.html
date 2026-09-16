@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Metrics Against Slop</title>
+  <meta name="description" content="Print-ready manual: local complexity metrics + code-graph gates against LLM/human helper-farm slop. Local Goose neo-brutal." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="print.css?v=6" />
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "base",
+      securityLevel: "loose",
+      themeVariables: {
+        primaryColor: "#F5E2D3",
+        primaryTextColor: "#1C1917",
+        primaryBorderColor: "#1C1917",
+        lineColor: "#1C1917",
+        secondaryColor: "#E2EACD",
+        tertiaryColor: "#FBF8F0",
+        background: "#FBF8F0",
+        mainBkg: "#FBF8F0",
+        nodeBorder: "#1C1917",
+        clusterBkg: "#F5EEDF",
+        titleColor: "#1C1917",
+        edgeLabelBackground: "#FBF8F0",
+        fontFamily: "IBM Plex Mono, monospace",
+        fontSize: "13px",
+      },
+    });
+  </script>
+  <style>
+    :root {
+      --cream-50: #FBF8F0;
+      --cream-100: #F5EEDF;
+      --cream-200: #EAE0C8;
+      --ink-500: #78716C;
+      --ink-600: #57534E;
+      --ink-700: #44403C;
+      --ink-800: #292524;
+      --ink-900: #1C1917;
+      --terra-100: #F5E2D3;
+      --terra-600: #C2410C;
+      --terra-700: #9A3412;
+      --terra-800: #7C2D12;
+      --brass-400: #C9A227;
+      --brass-500: #A67C00;
+      --plans-800: #1E2E4A;
+      --plans-900: #16233B;
+      --sage-100: #E2EACD;
+      --sage-600: #4D7C0F;
+      --sage-700: #3F6212;
+      --paper: #FFFFFF;
+      --border: 3px solid var(--ink-900);
+      --shadow: 5px 5px 0 var(--ink-900);
+      --shadow-terra: 5px 5px 0 var(--terra-600);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+      color: var(--ink-800);
+      background:
+        linear-gradient(90deg, rgba(28,25,23,0.04) 1px, transparent 1px),
+        linear-gradient(rgba(28,25,23,0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--cream-50), var(--cream-100));
+      background-size: 28px 28px, 28px 28px, auto;
+    }
+
+    .wrap { max-width: 920px; margin: 0 auto; padding: 1.25rem 1.25rem 4rem; }
+
+    .lbl {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--terra-700);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: Fraunces, Georgia, serif;
+      color: var(--ink-900);
+      line-height: 1.15;
+      margin: 0 0 0.75rem;
+    }
+
+    h1 { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 900; }
+    h2 { font-size: 1.85rem; font-weight: 900; margin-top: 0; }
+    h3 { font-size: 1.25rem; font-weight: 700; }
+    p { margin: 0 0 0.85rem; max-width: 68ch; }
+    strong { color: var(--ink-900); }
+
+    a { color: var(--terra-700); font-weight: 600; }
+    a:hover { color: var(--terra-600); }
+
+    .card {
+      background: var(--paper);
+      border: var(--border);
+      border-radius: 0;
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.35rem;
+      margin: 1rem 0 1.5rem;
+    }
+
+    .card-dark {
+      background: var(--plans-900);
+      color: var(--cream-100);
+      border: var(--border);
+      box-shadow: var(--shadow-terra);
+    }
+    .card-dark h2, .card-dark h3, .card-dark strong { color: var(--cream-50); }
+    .card-dark .lbl { color: var(--brass-400); }
+    .card-dark a { color: var(--brass-400); }
+
+    .cover {
+      margin: 1rem 0 2rem;
+      padding: 1.5rem 1.35rem;
+      background: var(--paper);
+      border: 4px solid var(--ink-900);
+      box-shadow: 8px 8px 0 var(--terra-600);
+    }
+
+    .cover h1 {
+      font-size: clamp(2rem, 5vw, 2.75rem);
+      margin-bottom: 0.5rem;
+    }
+
+    .stamps-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0 0 0.75rem;
+    }
+
+    .cover-lead {
+      max-width: 60ch;
+      margin-bottom: 0.85rem;
+    }
+
+    .ascii-diagram {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      background: var(--cream-50);
+      color: var(--ink-900);
+      border: 3px solid var(--ink-900);
+      box-shadow: 4px 4px 0 var(--ink-900);
+      padding: 0.75rem 1rem;
+      margin: 0.85rem 0 0.35rem;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .print-only {
+      display: none;
+    }
+
+    .card-dark .ascii-diagram {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--cream-100);
+      border-color: var(--cream-200);
+    }
+
+    .cover .thesis {
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--ink-900);
+      border-left: 6px solid var(--terra-600);
+      padding-left: 1rem;
+      margin: 0.75rem 0;
+      max-width: 50ch;
+    }
+
+    .path-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      margin-top: 1.25rem;
+    }
+
+    .path-chip {
+      border: 3px solid var(--ink-900);
+      background: var(--cream-50);
+      padding: 0.75rem;
+      box-shadow: 3px 3px 0 var(--ink-900);
+    }
+    .path-chip .t { font-family: "IBM Plex Mono", monospace; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--terra-700); }
+    .path-chip .v { font-weight: 800; color: var(--ink-900); margin-top: 0.25rem; }
+
+    .sticky-bar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--cream-50);
+      border-bottom: 3px solid var(--ink-900);
+      padding: 0.55rem 1.25rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .sticky-bar .brand {
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 900;
+      color: var(--ink-900);
+      text-decoration: none;
+    }
+    .sticky-bar .meta {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-500);
+    }
+    .sticky-bar select {
+      margin-left: auto;
+      border: 2px solid var(--ink-900);
+      border-radius: 0;
+      background: var(--paper);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      padding: 0.35rem 0.5rem;
+      box-shadow: 2px 2px 0 var(--ink-900);
+    }
+
+    .section-break { margin-top: 2.5rem; }
+
+    .callout {
+      border: 3px solid var(--ink-900);
+      box-shadow: 4px 4px 0 var(--ink-900);
+      margin: 1rem 0;
+      background: var(--paper);
+    }
+    .callout .tag {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.65rem;
+      border-bottom: 3px solid var(--ink-900);
+      border-right: 3px solid var(--ink-900);
+      color: var(--ink-900);
+    }
+    .callout .body { padding: 0.85rem 1rem 1rem; }
+    .callout.definition .tag { background: var(--terra-100); }
+    .callout.example .tag { background: var(--sage-100); }
+    .callout.slop .tag { background: #fecaca; }
+    .callout.threshold .tag { background: #fde68a; }
+    .callout.fp .tag { background: var(--cream-200); }
+    .callout.dothis .tag { background: var(--plans-800); color: var(--cream-50); border-color: var(--ink-900); }
+
+    .two-col {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 760px) {
+      .two-col { grid-template-columns: 1fr 1fr; }
+    }
+
+    .panel-green {
+      border: 3px solid var(--ink-900);
+      background: var(--sage-100);
+      box-shadow: 4px 4px 0 var(--sage-700);
+      padding: 1rem;
+    }
+    .panel-red {
+      border: 3px solid var(--ink-900);
+      background: #fecaca;
+      box-shadow: 4px 4px 0 var(--terra-700);
+      padding: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 0.75rem 0 1.25rem;
+      background: var(--paper);
+      border: 3px solid var(--ink-900);
+      box-shadow: 4px 4px 0 var(--ink-900);
+    }
+    th {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: left;
+      padding: 0.65rem 0.75rem;
+      background: var(--cream-100);
+      border-bottom: 3px solid var(--ink-900);
+      border-right: 1px solid rgba(28,25,23,0.15);
+      color: var(--ink-700);
+    }
+    td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid rgba(28,25,23,0.12);
+      border-right: 1px solid rgba(28,25,23,0.08);
+      vertical-align: top;
+      color: var(--ink-700);
+    }
+    tr:last-child td { border-bottom: none; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: "IBM Plex Mono", monospace; }
+    .bad { color: var(--terra-700); font-weight: 700; }
+    .good { color: var(--sage-700); font-weight: 700; }
+
+    pre, code {
+      font-family: "IBM Plex Mono", monospace;
+    }
+    pre {
+      background: var(--plans-900);
+      color: var(--cream-100);
+      border: 3px solid var(--ink-900);
+      box-shadow: 4px 4px 0 var(--terra-600);
+      padding: 1rem;
+      overflow-x: auto;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      margin: 0.75rem 0 1.25rem;
+    }
+    code {
+      font-size: 0.85em;
+      background: var(--cream-100);
+      border: 1px solid rgba(28,25,23,0.2);
+      padding: 0.05em 0.3em;
+    }
+    pre code { background: none; border: none; padding: 0; color: inherit; }
+
+    .mermaid {
+      background: var(--paper);
+      border: 3px solid var(--ink-900);
+      box-shadow: 4px 4px 0 var(--ink-900);
+      padding: 1rem;
+      margin: 0.75rem 0 0.35rem;
+      overflow-x: auto;
+    }
+    .caption {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.75rem;
+      color: var(--ink-600);
+      margin: 0 0 1.25rem;
+      max-width: 70ch;
+    }
+
+    .field-card {
+      border: 4px solid var(--ink-900);
+      background: var(--cream-50);
+      box-shadow: 6px 6px 0 var(--terra-600);
+      padding: 1.25rem;
+      margin: 1.5rem 0;
+    }
+    .field-card h3 {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .toc ol { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+    .toc li { margin: 0.35rem 0; }
+
+    .stamp {
+      display: inline-block;
+      border: 2px solid var(--ink-900);
+      padding: 0.15rem 0.45rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--brass-400);
+      color: var(--ink-900);
+    }
+
+    ul.tight { margin: 0.4rem 0 0.9rem; padding-left: 1.2rem; }
+    ul.tight li { margin: 0.25rem 0; }
+
+    .spread-title {
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 900;
+      text-align: center;
+      margin: 0.5rem 0 1rem;
+    }
+
+    /* Print overrides — browser chrome killed in print.css (@page margin:0) */
+    @media print {
+      nav, .sticky-bar, .no-print, .doc-chrome { display: none !important; }
+      body {
+        background: #fff !important;
+        background-image: none !important;
+        margin: 0 !important;
+        padding: 0.15in !important;
+      }
+      .wrap { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+      .mermaid { display: none !important; }
+      .print-only, .ascii-diagram { display: block !important; }
+      a[href]::after { content: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="sticky-bar no-print" aria-label="Document nav">
+    <a class="brand" href="#top">Metrics Against Slop</a>
+    <span class="meta">Local Goose · Neo-brutal field manual</span>
+    <select id="jump" aria-label="Jump to section">
+      <option value="">Jump…</option>
+      <option value="#how-to-read">How to read</option>
+      <option value="#thesis">Thesis</option>
+      <option value="#slop">1. Slop</option>
+      <option value="#layers">2. Layers</option>
+      <option value="#control-flow">3. Control-flow</option>
+      <option value="#size">4. Size</option>
+      <option value="#graphs101">5. Graphs 101</option>
+      <option value="#node">6. Node metrics</option>
+      <option value="#diff">7. Diff metrics</option>
+      <option value="#arch">8. Architecture</option>
+      <option value="#s1s2">9. S1 vs S2</option>
+      <option value="#m1">10. Healthy / stinky</option>
+      <option value="#lab">11. Threshold Lab</option>
+      <option value="#ci">12. CI</option>
+      <option value="#checklist">13. Checklist</option>
+      <option value="#agent">14. Agent prompt</option>
+      <option value="#field-cards">Field cards</option>
+      <option value="#glossary">Glossary</option>
+      <option value="#index">Example index</option>
+      <option value="#yaml">YAML thresholds</option>
+    </select>
+  </nav>
+
+  <div class="wrap" id="top">
+
+    <!-- COVER — kept short so print page 1 fits one letter sheet -->
+    <header class="cover page">
+      <p class="lbl doc-chrome">Field manual · v1.0.0 · 2026-08-31</p>
+      <h1>Metrics Against Slop</h1>
+      <p class="stamps-row">
+        <span class="stamp">Print-ready</span>
+        <span class="stamp" style="background:var(--sage-100)">ADHD skim OK</span>
+        <span class="stamp" style="background:var(--terra-100)">Machine YAML</span>
+      </p>
+      <p class="thesis">
+        Local metrics keep one function readable. Graph and diff metrics keep the system from turning into a cathedral of one-liners.
+      </p>
+      <p class="cover-lead">Stop LLM/human <strong>slop</strong> (helper farms, call ladders) without metric theater. Running example: <strong>Shopapi</strong>.</p>
+      <div class="path-grid" id="how-to-read">
+        <div class="path-chip"><div class="t">5 min</div><div class="v">Field cards + checklist</div></div>
+        <div class="path-chip"><div class="t">20 min</div><div class="v">Thesis + S1 vs S2</div></div>
+        <div class="path-chip"><div class="t">45 min</div><div class="v">Full Threshold Lab</div></div>
+        <div class="path-chip"><div class="t">Machine</div><div class="v">YAML appendix</div></div>
+      </div>
+      <pre class="ascii-diagram cover-ascii" aria-label="Cover diagram">
+ LOCAL METRICS ──► readable function
+ GRAPH / DIFF  ──► healthy service
+ LOCAL ALONE   ──► helper farms (slop)
+      </pre>
+      <p class="caption cover-ascii-caption">Local green ≠ system green. Diagram detail continues on the thesis page.</p>
+    </header>
+
+    <section class="card toc" id="toc">
+      <p class="lbl">Contents</p>
+      <h2>Table of contents</h2>
+      <ol>
+        <li><a href="#thesis">Cover thesis</a></li>
+        <li><a href="#slop">Slop and the helper-reward trap</a></li>
+        <li><a href="#layers">Metric map by layer</a></li>
+        <li><a href="#control-flow">Control-flow metrics (F1, F2, F4)</a></li>
+        <li><a href="#size">Size and token budgets (F7)</a></li>
+        <li><a href="#graphs101">Code graphs 101</a></li>
+        <li><a href="#node">Node-level metrics (F3, F5, F6)</a></li>
+        <li><a href="#diff">Graph-level and diff metrics</a></li>
+        <li><a href="#arch">Architecture / slop-shape checks</a></li>
+        <li><a href="#s1s2">Feature case study S1 vs S2</a></li>
+        <li><a href="#m1">Healthy functions, stinky service (M1)</a></li>
+        <li><a href="#lab">Threshold Lab tutorial</a></li>
+        <li><a href="#ci">Putting gates in CI</a></li>
+        <li><a href="#checklist">Review checklist</a></li>
+        <li><a href="#agent">Agent prompt snippet</a></li>
+        <li><a href="#field-cards">Field cards</a></li>
+        <li><a href="#glossary">Glossary</a></li>
+        <li><a href="#index">Index of examples</a></li>
+        <li><a href="#yaml">machine-readable-thresholds.yaml</a></li>
+      </ol>
+    </section>
+
+    <!-- THESIS -->
+    <section class="section-break card-dark card" id="thesis">
+      <p class="lbl">Core teaching</p>
+      <h2>Thesis — read twice</h2>
+      <p><strong>Cyclomatic complexity</strong> ≈ how many paths to test.</p>
+      <p><strong>Cognitive complexity</strong> ≈ how hard this function is to read (nesting + flow breaks). It does <strong>not</strong> punish calling helpers. It often <strong>rewards</strong> extracting functions. That is why LLMs emit slop that still looks “simple.”</p>
+      <p>Size / token / file caps stop monster files; they cause file explosion if used alone.</p>
+      <p>Call-graph / import-graph metrics catch slop between functions: fan-in-1 wrappers, depth ladders, ΔE/ΔV explosions, cycles.</p>
+      <p><strong>A function can be healthy while the module or service is stinky.</strong> That is the central demonstration. We repeat it with numbers.</p>
+      <pre class="mermaid">flowchart TB
+  LLM[LLM or human] --> Extract[Extract helpers]
+  Extract --> LocalGreen[Local metrics green]
+  LocalGreen --> Blind[Misses between-function slop]
+  Blind --> Stinky[Stinky service]
+  GraphCheck[Graph and diff metrics] --> Catch[Catch ladders]
+  Catch --> Balanced[Balanced design]
+</pre>
+      <pre class="ascii-diagram print-only" aria-hidden="false">
+ LLM → extract helpers → local metrics GREEN
+                      → misses graph slop → STINKY SERVICE
+ Graph checks → catch ladders → BALANCED DESIGN
+      </pre>
+      <p class="caption" style="color:var(--cream-200)">Notice: extraction is free for cognitive complexity. Graph cost is not free.</p>
+    </section>
+
+    <!-- 1 SLOP -->
+    <section class="section-break" id="slop">
+      <div class="card">
+        <p class="lbl">Section 1</p>
+        <h2>Slop and the helper-reward trap</h2>
+        <p><strong>Slop</strong> is code that passes local complexity caps but is still hard to understand as a system: helper farms, call ladders, fake layers, one-use wrappers, unused types.</p>
+        <pre class="mermaid">flowchart LR
+  Fat[One fat function] -->|extract| Many[Many tiny helpers]
+  Many --> CogDrop[Cognitive drops]
+  CogDrop --> GatePass[Local gate passes]
+  GatePass --> Smell[Fan-in 1 and depth up]
+</pre>
+        <p class="caption">Notice: the local gate trained the wrong behavior.</p>
+
+        <div class="callout definition"><div class="tag">DEFINITION</div><div class="body"><p><strong>Slop</strong> = locally green, systemically red. The smell lives in edges and depth, not in one function’s nesting.</p></div></div>
+        <div class="callout slop"><div class="tag">SLOP SIGNATURE</div><div class="body"><p>Private function, body ≤ 4 statements, fan-in = 1, verb-of-a-verb name (<code>ensure_items</code>). Depth from public entry ≥ 4.</p></div></div>
+        <div class="callout dothis"><div class="tag">DO THIS</div><div class="body"><p>Keep extraction when fan-in ≥ 2 <strong>or</strong> the name is durable domain language. Otherwise inline.</p></div></div>
+      </div>
+    </section>
+
+    <!-- 2 LAYERS -->
+    <section class="section-break" id="layers">
+      <div class="card">
+        <p class="lbl">Section 2</p>
+        <h2>Metric map by layer</h2>
+        <p>Metrics live on layers. Never mix call-graph edges with import-graph edges in one score.</p>
+        <pre class="mermaid">flowchart TB
+  PR[PR subgraph] --> Svc[Service]
+  Svc --> Mod[Module]
+  Mod --> File[File]
+  File --> Fn[Function]
+</pre>
+        <p class="caption">Notice: most slop gates fire on the PR subgraph and public entry depth.</p>
+        <table>
+          <thead><tr><th>Layer</th><th>Metrics</th><th>Tools</th></tr></thead>
+          <tbody>
+            <tr><td>Function</td><td>Cyclo, cognitive, nest, returns, stmts</td><td>Ruff, complexipy, radon</td></tr>
+            <tr><td>File</td><td>SLOC, tokens, fns/file</td><td>cloc, token estimate</td></tr>
+            <tr><td>Module</td><td>Import degrees, Martin I/A/D</td><td>importlinter, module graph</td></tr>
+            <tr><td>Service</td><td>Depth, diameter, ΔV/ΔE, new types</td><td>callers/callees/impact</td></tr>
+            <tr><td>PR</td><td>ΔE/ΔV, cycles, affected tests, FI1</td><td>git diff + CodeGraph JSON</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3 CONTROL FLOW -->
+    <section class="section-break family" id="control-flow">
+      <div class="card">
+        <p class="lbl">Section 3 · Family</p>
+        <h2>Control-flow metrics</h2>
+        <p>They count branches and nesting <strong>inside</strong> one function. They cannot see wrappers next door.</p>
+
+        <h3>3.1 Cyclomatic complexity (McCabe)</h3>
+        <div class="callout definition"><div class="tag">DEFINITION</div><div class="body"><p><strong>Cyclomatic complexity</strong> ≈ how many independent paths to test. Simplified: \(V(G)=E-N+2\). Practical: start 1; +1 per decision arm (tool-specific).</p></div></div>
+        <p><strong>Good at:</strong> test-path budget. <strong>Cannot see:</strong> helpers; whether a flat match is readable.</p>
+
+        <h3>3.2 Cognitive complexity (Sonar-style)</h3>
+        <div class="callout definition"><div class="tag">DEFINITION</div><div class="body"><p><strong>Cognitive complexity</strong> ≈ read cost: nesting + flow breaks. <strong>Method calls are free.</strong> Nesting costs. Match/switch often cheap. Recursion is not free.</p></div></div>
+        <table>
+          <thead><tr><th>Event</th><th>Cost</th></tr></thead>
+          <tbody>
+            <tr><td>if / for / while / except</td><td>+1 + nesting</td></tr>
+            <tr><td>match / switch</td><td>Often cheap vs nested ifs</td></tr>
+            <tr><td>Function calls</td><td><strong>Free</strong></td></tr>
+            <tr><td>Recursion</td><td>Counts</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Classic contrast</h3>
+        <table>
+          <thead><tr><th>Shape</th><th class="num">Cyclomatic</th><th class="num">Cognitive</th></tr></thead>
+          <tbody>
+            <tr><td>Flat match / long elif / sequential guards</td><td class="num">High</td><td class="num">Relatively low</td></tr>
+            <tr><td>Deeply nested ifs</td><td class="num">Similar</td><td class="num bad">Much higher</td></tr>
+          </tbody>
+        </table>
+
+        <h3>F2 — Flat match (Python)</h3>
+        <div class="callout example"><div class="tag">EXAMPLE · F2</div><div class="body">
+<pre><code>def http_label(status: int) -&gt; str:
+    match status:
+        case 200: return "ok"
+        case 201: return "created"
+        case 400: return "bad_request"
+        case 401: return "unauthorized"
+        case 403: return "forbidden"
+        case 404: return "not_found"
+        case 409: return "conflict"
+        case 422: return "unprocessable"
+        case 429: return "rate_limited"
+        case 500: return "error"
+        case _: return "other"</code></pre>
+          <table>
+            <thead><tr><th>Metric</th><th class="num">Value</th><th>Note</th></tr></thead>
+            <tbody>
+              <tr><td>cyclomatic</td><td class="num">~11</td><td>Many arms</td></tr>
+              <tr><td>cognitive</td><td class="num good">~1–2</td><td>Flat match cheap</td></tr>
+              <tr><td>nesting</td><td class="num">1</td><td></td></tr>
+            </tbody>
+          </table>
+        </div></div>
+        <div class="callout fp"><div class="tag">FALSE POSITIVE</div><div class="body"><p>High cyclo on a flat match. Do <strong>not</strong> extract twelve one-line functions.</p></div></div>
+
+        <pre class="mermaid">flowchart LR
+  Match[Flat match table] -->|OK| Keep[Keep high cyclo]
+  Match -->|wrong| Split[12 tiny functions]
+  Split --> Slop2[Slop]
+</pre>
+        <p class="caption">Notice: F2 — match tables vs extracted functions. Prefer the table.</p>
+
+        <h3>F1 — Nested ifs vs early returns</h3>
+        <div class="two-col">
+          <div>
+            <p class="lbl">Before</p>
+<pre><code>def can_ship(order, stock, user):
+    if order is not None:
+        if user.is_active:
+            if stock.available(order.sku) &gt;= order.qty:
+                if not order.blocked:
+                    return True
+    return False</code></pre>
+          </div>
+          <div>
+            <p class="lbl">After</p>
+<pre><code>def can_ship(order, stock, user):
+    if order is None: return False
+    if not user.is_active: return False
+    if stock.available(order.sku) &lt; order.qty: return False
+    if order.blocked: return False
+    return True</code></pre>
+          </div>
+        </div>
+        <pre class="mermaid">flowchart TB
+  subgraph nested [F1 nested]
+    A1{order?} --> B1{active?}
+    B1 --> C1{stock?}
+    C1 --> D1{blocked?}
+  end
+</pre>
+        <p class="caption">Notice: nested pyramid — similar cyclo, higher cognitive.</p>
+        <pre class="mermaid">flowchart TB
+  subgraph early [F1 early returns]
+    A2{order?} -->|no| R0[False]
+    A2 -->|yes| B2{active?}
+    B2 -->|no| R1[False]
+    B2 -->|yes| C2{stock?}
+    C2 -->|no| R2[False]
+    C2 -->|yes| D2{blocked?}
+    D2 -->|yes| R3[False]
+    D2 -->|no| R4[True]
+  end
+</pre>
+        <p class="caption">Notice: early returns — nesting collapses; cognitive drops.</p>
+        <table>
+          <thead><tr><th>Version</th><th class="num">cyclo</th><th class="num">cognitive</th><th class="num">nest</th></tr></thead>
+          <tbody>
+            <tr><td>Nested</td><td class="num">~5</td><td class="num bad">~10</td><td class="num bad">4</td></tr>
+            <tr><td>Early returns</td><td class="num">~5</td><td class="num good">~4</td><td class="num good">1</td></tr>
+          </tbody>
+        </table>
+
+        <h3>F4 — same as F1</h3>
+        <p>Guard list beats nested pyramid of the <strong>same</strong> predicates. Cyclo similar; cognitive and nesting drop.</p>
+
+        <h3>3.3 Max nesting · 3.4 PLR091x</h3>
+        <table>
+          <thead><tr><th>Metric</th><th>Protects</th><th>Misses</th></tr></thead>
+          <tbody>
+            <tr><td>Max nesting</td><td>Pyramids</td><td>Flat tables</td></tr>
+            <tr><td>PLR0912 branches</td><td>Monster decisions</td><td>Readable matches</td></tr>
+            <tr><td>PLR0911 returns</td><td>Spaghetti exits</td><td>Guard clauses</td></tr>
+            <tr><td>PLR0915 statements</td><td>Runaways</td><td>Dense parsers</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout threshold"><div class="tag">THRESHOLD LAB</div><div class="body"><p>Cognitive fail &gt;15 (or team 8–10). Nesting: warn at 3, fail above 4. Cyclomatic warn 8–10 / fail 10–15 — allow flat matches.</p></div></div>
+      </div>
+
+      <div class="field-card" id="fc-complexity">
+        <h3>Field card · Complexity</h3>
+        <table>
+          <thead><tr><th>Metric</th><th>Fail</th><th>Warn</th><th>Misses</th></tr></thead>
+          <tbody>
+            <tr><td>Cognitive</td><td>&gt;15 or 8–10</td><td>8–15</td><td>Helper farms</td></tr>
+            <tr><td>Cyclomatic</td><td>&gt;10–15</td><td>8–10</td><td>Flat matches</td></tr>
+            <tr><td>Nesting</td><td>&gt;3–4</td><td>3</td><td>Flat tables</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4 SIZE -->
+    <section class="section-break family" id="size">
+      <div class="card">
+        <p class="lbl">Section 4 · Family</p>
+        <h2>Size and token budgets</h2>
+        <p>Size bounds human and LLM edit context. It does <strong>not</strong> measure design quality.</p>
+        <div class="callout definition"><div class="tag">DEFINITION</div><div class="body"><p><strong>LLM-edit budget</strong> ≈ how much of a file you can change while still holding surrounding context. Practical band: <strong>300–600 lines / ~3k–6k tokens</strong>. Rough: ≈4 chars/token; ~100 lines ≈ 500–1000 tokens.</p></div></div>
+        <table>
+          <thead><tr><th>Budget</th><th class="num">Lines</th><th class="num">Tokens</th></tr></thead>
+          <tbody>
+            <tr><td>Comfortable</td><td class="num">300–600</td><td class="num">~3k–6k</td></tr>
+            <tr><td>Warn</td><td class="num">~250</td><td class="num">~2.5k</td></tr>
+            <tr><td>Fail start-here</td><td class="num">&gt;400–500</td><td class="num">&gt;4k</td></tr>
+          </tbody>
+        </table>
+        <div class="callout slop"><div class="tag">SLOP SIGNATURE</div><div class="body"><p>Size cap without fan-in rule → 40 files of 30 lines.</p></div></div>
+
+        <h3>F7 — Split that helps vs slop</h3>
+        <pre class="mermaid">flowchart LR
+  subgraph help [Helpful]
+    A[orders.py] --> B[payments.py]
+  end
+  subgraph slopSplit [Slop]
+    C[h1] --> D[h2]
+    D --> E[h3]
+    E --> F[h4]
+  end
+</pre>
+        <pre class="ascii-diagram print-only">
+ HELPFUL: orders.py ── payments.py
+ SLOP:    h1 → h2 → h3 → h4  (fan-in 1 ladder)
+        </pre>
+        <p class="caption">Same LOC. Different graphs. Size caps without fan-in rules create confetti files.</p>
+        <table>
+          <thead><tr><th>Split</th><th class="num">Files</th><th class="num">FI1</th><th class="num">Depth</th><th>LLM effect</th></tr></thead>
+          <tbody>
+            <tr><td>Helpful</td><td class="num">2</td><td class="num good">0</td><td class="num good">≤3</td><td>Clear ownership</td></tr>
+            <tr><td>Slop</td><td class="num">8×30</td><td class="num bad">7</td><td class="num bad">6</td><td>Context hops</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="field-card">
+        <h3>Field card · Size</h3>
+        <table>
+          <thead><tr><th>Metric</th><th>Fail</th><th>Warn</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>File tokens</td><td>&gt;4k</td><td>2.5k</td><td>Exclude generated</td></tr>
+            <tr><td>File SLOC</td><td>&gt;400–500</td><td>250</td><td></td></tr>
+            <tr><td>Fns / file</td><td>smell if many FI1</td><td>—</td><td>Pair with graph</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5 GRAPHS -->
+    <section class="section-break" id="graphs101">
+      <div class="card">
+        <p class="lbl">Section 5</p>
+        <h2>Code graphs 101</h2>
+        <p>Build <strong>three graphs</strong>. Never mix kinds in one score.</p>
+        <table>
+          <thead><tr><th>Graph</th><th>Nodes</th><th>Edges</th></tr></thead>
+          <tbody>
+            <tr><td>Call</td><td>functions</td><td>calls</td></tr>
+            <tr><td>Module</td><td>files</td><td>imports</td></tr>
+            <tr><td>Type</td><td>classes</td><td>extends / implements</td></tr>
+          </tbody>
+        </table>
+        <p>CodeGraph exposes <strong>query JSON</strong>, not always a full <code>{nodes,edges}</code> dump. Compute degrees from:</p>
+        <table>
+          <thead><tr><th>Command</th><th>Metric</th></tr></thead>
+          <tbody>
+            <tr><td><code>callers --json</code></td><td>fan-in deg⁻</td></tr>
+            <tr><td><code>callees --json</code></td><td>fan-out deg⁺</td></tr>
+            <tr><td><code>impact --depth k --json</code></td><td>blast radius</td></tr>
+            <tr><td><code>affected</code></td><td>tests that should move</td></tr>
+            <tr><td><code>query</code> / <code>status</code></td><td>inventory — not degrees</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6 NODE -->
+    <section class="section-break family" id="node">
+      <div class="card">
+        <p class="lbl">Section 6 · Family</p>
+        <h2>Node-level graph metrics</h2>
+        <table>
+          <thead><tr><th>Metric</th><th>Formula</th></tr></thead>
+          <tbody>
+            <tr><td>Fan-in</td><td>deg⁻(v) = callers</td></tr>
+            <tr><td>Fan-out</td><td>deg⁺(v) = callees</td></tr>
+            <tr><td>Risk product</td><td>deg⁻ × deg⁺</td></tr>
+            <tr><td>Henry–Kafura IFC</td><td><strong>length × (fan-in × fan-out)²</strong> (classic; teaching)</td></tr>
+            <tr><td>Reach @ k</td><td>nodes within depth k</td></tr>
+            <tr><td>Depth from entry</td><td>hops from public API</td></tr>
+            <tr><td>Betweenness</td><td>PR subgraph only</td></tr>
+            <tr><td>% new callees</td><td>new / all callees in diff</td></tr>
+            <tr><td>Isolates</td><td>degree 0</td></tr>
+          </tbody>
+        </table>
+
+        <h3>F3 — One-use wrapper</h3>
+        <div class="callout example"><div class="tag">EXAMPLE · F3</div><div class="body">
+<pre><code>def is_active_user(user):
+    return user.is_active
+
+def place_order(user, cart):
+    if not is_active_user(user):
+        raise Denied
+    ...</code></pre>
+          <pre class="mermaid">flowchart LR
+  place[place_order] --> active[is_active_user]
+</pre>
+          <pre class="ascii-diagram print-only">place_order → is_active_user   (fan-in 1 → inline)</pre>
+          <table>
+            <thead><tr><th>name</th><th class="num">loc</th><th class="num">cyclo</th><th class="num">cognitive</th><th class="num">fan-in</th></tr></thead>
+            <tbody>
+              <tr><td>is_active_user</td><td class="num">2</td><td class="num good">1</td><td class="num good">0–1</td><td class="num bad">1</td></tr>
+            </tbody>
+          </table>
+          <p>Fan-in counts <strong>in-repo</strong> callers, not the web framework.</p>
+        </div></div>
+        <div class="callout slop"><div class="tag">SLOP SIGNATURE</div><div class="body"><p>All local metrics fine; <strong>fan-in = 1</strong> is the smell.</p></div></div>
+
+        <h3>F6 — True helper</h3>
+        <p><code>parse_money</code> at 3 call sites. Fan-in 3. Domain language. <span class="good">Keep.</span></p>
+
+        <h3>F5 — After inlining S1 wrappers</h3>
+        <table>
+          <thead><tr><th>View</th><th>Before</th><th>After</th></tr></thead>
+          <tbody>
+            <tr><td>place_order cognitive</td><td>2</td><td class="bad">6 (acceptable)</td></tr>
+            <tr><td>Max depth</td><td class="bad">6</td><td class="good">2–3</td></tr>
+            <tr><td>FI1 privates</td><td class="bad">many</td><td class="good">0</td></tr>
+          </tbody>
+        </table>
+        <div class="callout dothis"><div class="tag">DO THIS</div><div class="body"><p>Accept the local rise when the graph improves.</p></div></div>
+      </div>
+      <div class="field-card">
+        <h3>Field card · Graph nodes</h3>
+        <table>
+          <thead><tr><th>Metric</th><th>Fail</th><th>Warn</th></tr></thead>
+          <tbody>
+            <tr><td>New private FI1 + tiny body</td><td>=1 &amp; ≤4 stmts</td><td>=1</td></tr>
+            <tr><td>Fan-out (no stdlib)</td><td>&gt;8</td><td>6–8</td></tr>
+            <tr><td>Depth from entry</td><td>&gt;3</td><td>3</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 7 DIFF -->
+    <section class="section-break family" id="diff">
+      <div class="card">
+        <p class="lbl">Section 7 · Family</p>
+        <h2>Graph-level and diff metrics</h2>
+        <p>Gate the <strong>PR subgraph</strong>. Primary rejects: <strong>FI1</strong>, <strong>depth &gt; 3</strong>, <strong>new cycles</strong>, <strong>0 affected tests</strong>. ΔE/ΔV is secondary — fail only with many FI1 nodes.</p>
+        <table>
+          <thead><tr><th>Metric</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td>ΔV / ΔE / ΔE/ΔV</td><td>Churn — ratio secondary</td></tr>
+            <tr><td>Diameter</td><td>Ladder length</td></tr>
+            <tr><td>New cycles / SCC</td><td>Fail &gt; 0</td></tr>
+            <tr><td>Avg degree, density, Martin I/A/D</td><td>Informational</td></tr>
+          </tbody>
+        </table>
+        <pre class="mermaid">flowchart TB
+  Diff[git diff] --> Index[index HEAD]
+  Index --> Sym[symbols in changed files]
+  Sym --> CC[callers callees impact]
+  CC --> Rules[threshold rules]
+  Rules --> Warn[warn or fail]
+</pre>
+        <p class="caption">Notice: inventory is not a gate. Degrees and impact on the changed set are.</p>
+      </div>
+      <div class="field-card">
+        <h3>Field card · Diff / architecture</h3>
+        <table>
+          <thead><tr><th>Metric</th><th>Fail</th><th>Warn</th></tr></thead>
+          <tbody>
+            <tr><td>ΔE/ΔV + many FI1</td><td>&gt;2.5</td><td>&gt;2</td></tr>
+            <tr><td>New cycles</td><td>&gt;0</td><td>—</td></tr>
+            <tr><td>New types / PR</td><td>&gt;1 unless domain</td><td>—</td></tr>
+            <tr><td>Affected tests</td><td>0 on behavior change</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 8 ARCH -->
+    <section class="section-break" id="arch">
+      <div class="card">
+        <p class="lbl">Section 8</p>
+        <h2>Architecture / slop-shape checks</h2>
+        <ul class="tight">
+          <li>One-use helper: FI1 + tiny + private → inline</li>
+          <li>Call-depth from public entry ≤ 3</li>
+          <li>Max new files / types / abstracts per PR</li>
+          <li>Forbidden ceremony: <code>*Factory</code>, <code>*Manager</code>, <code>Base*</code>, Protocol with one impl</li>
+          <li>Dead code / isolates</li>
+          <li>Tests that only mock private helpers</li>
+          <li>Duplication gate <strong>and</strong> forced-generic gate</li>
+        </ul>
+        <div class="two-col">
+          <div>
+            <pre class="mermaid">flowchart LR
+  F[OrderFacade] --> A[A]
+  F --> B[B]
+  F --> C[C]
+</pre>
+            <p class="caption">Star façade — often ceremony when leaves are FI1.</p>
+          </div>
+          <div>
+            <pre class="mermaid">flowchart LR
+  P[place_order] --> V[validate_cart]
+  P --> R[reserve_stock]
+  P --> C2[charge]
+  P --> W[write_order]
+</pre>
+            <p class="caption">Small clique of domain verbs — usually balanced.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 S1 S2 -->
+    <section class="section-break" id="s1s2">
+      <div class="card">
+        <p class="lbl">Section 9 · Centerpiece</p>
+        <h2>Shopapi case study — S1 vs S2</h2>
+        <p>Same behavior. Different graphs. This is the spine of the manual.</p>
+
+        <h3>S1 — Slop (green cells, red organ)</h3>
+        <p><code>route → handle_order → process_order → validate_order → check_order → ensure_items / ensure_user → charge_and_save → save_order</code></p>
+        <p>Each function 4–10 lines; cognitive 1–3; cyclomatic 1–3.</p>
+        <pre class="mermaid">flowchart TD
+  route[route] --> handle[handle_order]
+  handle --> process[process_order]
+  process --> validate[validate_order]
+  validate --> check[check_order]
+  check --> items[ensure_items]
+  check --> user[ensure_user]
+  process --> charge[charge_and_save]
+  charge --> save[save_order]
+</pre>
+        <pre class="ascii-diagram print-only">route → handle → process → validate → check → ensure_* → charge_and_save → save</pre>
+        <p class="caption">Notice: every node locally green. Depth and FI1 edges make the service red.</p>
+
+        <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>name</th><th class="num">loc</th><th class="num">tok</th><th class="num">cyclo</th><th class="num">cog</th><th class="num">nest</th>
+              <th class="num">FI</th><th class="num">FO</th><th class="num">depth</th><th class="num">new%</th><th class="num">imp@3</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>route</td><td class="num">6</td><td class="num">40</td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">100</td><td class="num">8</td></tr>
+            <tr><td>handle_order</td><td class="num">5</td><td class="num">35</td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num bad">1</td><td class="num">1</td><td class="num">1</td><td class="num">100</td><td class="num">7</td></tr>
+            <tr><td>process_order</td><td class="num">8</td><td class="num">55</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num bad">1</td><td class="num">2</td><td class="num">2</td><td class="num">100</td><td class="num">6</td></tr>
+            <tr><td>validate_order</td><td class="num">6</td><td class="num">40</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num bad">1</td><td class="num">1</td><td class="num">3</td><td class="num">100</td><td class="num">4</td></tr>
+            <tr><td>check_order</td><td class="num">7</td><td class="num">45</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num bad">1</td><td class="num">2</td><td class="num bad">4</td><td class="num">100</td><td class="num">3</td></tr>
+            <tr><td>ensure_items</td><td class="num">5</td><td class="num">30</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num bad">1</td><td class="num">0</td><td class="num bad">5</td><td class="num">0</td><td class="num">1</td></tr>
+            <tr><td>ensure_user</td><td class="num">4</td><td class="num">25</td><td class="num">2</td><td class="num">1</td><td class="num">1</td><td class="num bad">1</td><td class="num">0</td><td class="num bad">5</td><td class="num">0</td><td class="num">1</td></tr>
+            <tr><td>charge_and_save</td><td class="num">9</td><td class="num">60</td><td class="num">3</td><td class="num">3</td><td class="num">1</td><td class="num bad">1</td><td class="num">1</td><td class="num">3</td><td class="num">100</td><td class="num">2</td></tr>
+            <tr><td>save_order</td><td class="num">5</td><td class="num">30</td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num bad">1</td><td class="num">0</td><td class="num bad">4</td><td class="num">0</td><td class="num">1</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <table>
+          <thead>
+            <tr><th class="num">ΔV</th><th class="num">ΔE</th><th class="num">ΔE/ΔV</th><th class="num">diam</th><th class="num">max depth</th><th class="num">FI1</th><th class="num">cycles</th><th class="num">files</th><th class="num">public API</th><th class="num">affected tests</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">9</td><td class="num">8</td><td class="num">0.89</td><td class="num bad">6</td><td class="num bad">6</td><td class="num bad">8</td><td class="num">0</td><td class="num bad">4</td><td class="num">1</td><td class="num bad">0</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="caption">ΔE/ΔV looks mild. Reject on FI1=8, depth=6, tests=0 — not the ratio.</p>
+        <div class="callout slop"><div class="tag">SLOP SIGNATURE · S1</div><div class="body"><p>Private fan-in-1 ladder; depth 6; no behavior tests; optional Facade+Service+Validator for one route.</p></div></div>
+
+        <h3>S2 — Balanced</h3>
+        <p><code>place_order</code> calls shared <code>validate_cart</code>, <code>reserve_stock</code>, <code>charge</code>, <code>write_order</code>.</p>
+        <pre class="mermaid">flowchart TD
+  place[place_order] --> cart[validate_cart]
+  place --> stock[reserve_stock]
+  place --> pay[charge]
+  place --> write[write_order]
+</pre>
+        <pre class="ascii-diagram print-only">place_order → validate_cart / reserve_stock / charge / write_order</pre>
+        <p class="caption">Notice: depth ≤ 2. Public function may look “worse” locally.</p>
+
+        <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>name</th><th class="num">loc</th><th class="num">tok</th><th class="num">cyclo</th><th class="num">cog</th><th class="num">nest</th>
+              <th class="num">FI</th><th class="num">FO</th><th class="num">depth</th><th class="num">new%</th><th class="num">imp@3</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>place_order</td><td class="num">28</td><td class="num">160</td><td class="num">6</td><td class="num">6</td><td class="num">1</td><td class="num">1</td><td class="num">4</td><td class="num">0</td><td class="num">25</td><td class="num">5</td></tr>
+            <tr><td>validate_cart</td><td class="num">18</td><td class="num">100</td><td class="num">4</td><td class="num">4</td><td class="num">1</td><td class="num good">3</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">1</td></tr>
+            <tr><td>reserve_stock</td><td class="num">14</td><td class="num">80</td><td class="num">3</td><td class="num">3</td><td class="num">1</td><td class="num good">2</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">1</td></tr>
+            <tr><td>charge</td><td class="num">16</td><td class="num">90</td><td class="num">3</td><td class="num">3</td><td class="num">1</td><td class="num good">2</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">1</td></tr>
+            <tr><td>write_order</td><td class="num">12</td><td class="num">70</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num good">2</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td class="num">1</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <table>
+          <thead>
+            <tr><th class="num">ΔV</th><th class="num">ΔE</th><th class="num">ΔE/ΔV</th><th class="num">diam</th><th class="num">max depth</th><th class="num">FI1</th><th class="num">cycles</th><th class="num">files</th><th class="num">public API</th><th class="num">affected tests</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">1–2</td><td class="num">4</td><td class="num">~2–4</td><td class="num good">2</td><td class="num good">2</td><td class="num good">0</td><td class="num">0</td><td class="num good">0–1</td><td class="num">1</td><td class="num good">≥1</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="caption">ΔE/ΔV can look “high” with few new nodes. Accept — FI1=0, depth=2, tests move.</p>
+
+        <h3>Delta — what got “worse”</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>S1</th><th>S2</th><th>Accept?</th></tr></thead>
+          <tbody>
+            <tr><td>Workflow cognitive</td><td>1–2</td><td class="bad">6</td><td class="good">yes — real workflow visible</td></tr>
+            <tr><td>Max depth</td><td class="bad">6</td><td class="good">2</td><td class="good">yes</td></tr>
+            <tr><td>FI1 privates</td><td class="bad">8</td><td class="good">0</td><td class="good">yes</td></tr>
+            <tr><td>Affected tests</td><td class="bad">0</td><td class="good">≥1</td><td class="good">yes</td></tr>
+          </tbody>
+        </table>
+        <div class="callout dothis"><div class="tag">DO THIS</div><div class="body"><p>Local cognitive rose, graph improved → <strong>prefer graph</strong> (usually merge).</p></div></div>
+      </div>
+    </section>
+
+    <!-- 10 M1 -->
+    <section class="section-break" id="m1">
+      <p class="spread-title">M1 — Healthy cells, diseased organ</p>
+      <div class="two-col">
+        <div class="panel-green">
+          <p class="lbl">Left · eight green cells</p>
+          <table>
+            <thead><tr><th>fn</th><th>cyclo≤5</th><th>cog≤8</th></tr></thead>
+            <tbody>
+              <tr><td>handle_order</td><td class="good">✓</td><td class="good">✓</td></tr>
+              <tr><td>process_order</td><td class="good">✓</td><td class="good">✓</td></tr>
+              <tr><td>validate_order</td><td class="good">✓</td><td class="good">✓</td></tr>
+              <tr><td>check_order</td><td class="good">✓</td><td class="good">✓</td></tr>
+              <tr><td>ensure_items</td><td class="good">✓</td><td class="good">✓</td></tr>
+              <tr><td>ensure_user</td><td class="good">✓</td><td class="good">✓</td></tr>
+              <tr><td>charge_and_save</td><td class="good">✓</td><td class="good">✓</td></tr>
+              <tr><td>save_order</td><td class="good">✓</td><td class="good">✓</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel-red">
+          <p class="lbl">Right · red organ</p>
+          <table>
+            <thead><tr><th>Module signal</th><th class="num">Value</th></tr></thead>
+            <tbody>
+              <tr><td>New nodes</td><td class="num bad">8</td></tr>
+              <tr><td>Fan-in-1 privates</td><td class="num bad">8</td></tr>
+              <tr><td>Depth</td><td class="num bad">6</td></tr>
+              <tr><td>Extra tests</td><td class="num bad">0</td></tr>
+              <tr><td>New types</td><td class="bad">Facade+Service+Validator</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <pre class="mermaid">flowchart TB
+  subgraph cells [Healthy cells]
+    h1[fn1]
+    h2[fn2]
+    h3[fn3]
+    h4[fn4]
+  end
+  subgraph organ [Diseased organ]
+    L[depth 6 ladder]
+    W[fan-in 1 wrappers]
+    T[extra types]
+  end
+  cells --> organ
+</pre>
+      <p class="caption">Caption: Healthy cells, diseased organ. Passing every function gate ≠ mergeable service.</p>
+    </section>
+
+    <!-- 11 LAB -->
+    <section class="section-break" id="lab">
+      <div class="card">
+        <p class="lbl">Section 11 · Tutorial</p>
+        <h2>Threshold Lab</h2>
+        <p>A method, not magic numbers.</p>
+        <ol>
+          <li>Measure 3–5 real PRs or Shopapi S1/S2.</li>
+          <li>Mark merge/reject by <strong>human taste first</strong>.</li>
+          <li>Set limits just tight enough to reject S1 and accept S2.</li>
+          <li>Warn-only for 2 weeks.</li>
+          <li>Allowlist generated, migrations, lockfiles, large match tables.</li>
+          <li>Revisit when a limit forces worse designs.</li>
+        </ol>
+        <pre class="mermaid">flowchart TB
+  Taste[Human taste] --> Draft[Draft thresholds]
+  Draft --> Warn[Warn-only 2 weeks]
+  Warn --> Tune[Tighten or loosen]
+  Tune --> Fail[Fail gate]
+  Fail --> Revisit[Revisit if design worsens]
+</pre>
+        <p class="caption">Notice: taste first, numbers second.</p>
+
+        <div class="callout threshold"><div class="tag">THRESHOLD LAB · Worked</div><div class="body">
+          <table>
+            <thead><tr><th>Sample</th><th>Taste</th><th class="num">Depth</th><th class="num">FI1</th></tr></thead>
+            <tbody>
+              <tr><td>S1</td><td class="bad">reject</td><td class="num">6</td><td class="num">8</td></tr>
+              <tr><td>S2</td><td class="good">merge</td><td class="num">2</td><td class="num">0</td></tr>
+            </tbody>
+          </table>
+          <p><strong>Arrive at:</strong> fail depth &gt; 3; fail new private FI1 with body ≤ 4 statements. Rejects S1, accepts S2, allows place_order cognitive = 6.</p>
+        </div></div>
+
+        <h3>Conflict resolution</h3>
+        <table>
+          <thead><tr><th>Situation</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>Local cognitive ↑, graph ↑</td><td>Prefer graph · usually merge</td></tr>
+            <tr><td>Protocol + one impl</td><td>Reject ceremony</td></tr>
+            <tr><td>Flat match high cyclo</td><td>Allow</td></tr>
+            <tr><td>Data table over token cap</td><td>Allow</td></tr>
+            <tr><td>Composition root high fan-out</td><td>Allowlist symbol</td></tr>
+          </tbody>
+        </table>
+
+        <h3>If two designs pass, pick…</h3>
+        <ul class="tight">
+          <li>Fewer new symbols</li>
+          <li>Fewer files</li>
+          <li>Shallower depth</li>
+          <li>Domain names</li>
+          <li>Tests through the public API</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 12 CI -->
+    <section class="section-break" id="ci">
+      <div class="card">
+        <p class="lbl">Section 12</p>
+        <h2>Putting gates in CI</h2>
+        <ol>
+          <li>Index HEAD.</li>
+          <li>Symbols in changed files.</li>
+          <li>callers / callees / impact --depth 3.</li>
+          <li>Rules: FI1 tiny private → fail; depth &gt; 3 → fail; new cycles → fail.</li>
+          <li>affected tests on behavior change.</li>
+          <li>Warn vs fail rollout.</li>
+          <li><strong>Pair with Ruff / complexipy / radon — do not replace them.</strong></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- 13 CHECKLIST -->
+    <section class="section-break" id="checklist">
+      <div class="card">
+        <p class="lbl">Section 13 · 90 seconds</p>
+        <h2>Review checklist</h2>
+        <ol>
+          <li>Name the workflow in one sentence?</li>
+          <li>Depth from entry ≤ 3?</li>
+          <li>New private FI1 wrappers?</li>
+          <li>Flat match? Allow high cyclo.</li>
+          <li>New Factory/Manager/single Protocol?</li>
+          <li>Behavior change → which tests move?</li>
+          <li>Cognitive rose on real fn while ladder died? Good.</li>
+          <li>File split: cohesive or confetti?</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- 14 AGENT -->
+    <section class="section-break" id="agent">
+      <div class="card">
+        <p class="lbl">Section 14</p>
+        <h2>Agent / LLM prompt snippet</h2>
+<pre><code>Before extracting helpers, check fan-in. Do not add private functions with
+fan-in 1 and body ≤ 4 statements. Keep call depth from the public entry ≤ 3.
+Prefer raising cognitive complexity on the public workflow over a ladder of
+wrappers. Do not add Protocol/ABC/Factory/Manager for a single implementation.
+Flat match/elif tables may have high cyclomatic complexity; do not split them
+into one-line functions. Pair local complexity caps with call-graph checks on
+the PR. Tests must exercise the public API, not only mocks of private helpers.</code></pre>
+      </div>
+    </section>
+
+    <!-- FIELD CARDS SUMMARY -->
+    <section class="section-break" id="field-cards">
+      <div class="field-card">
+        <p class="lbl">Print these four</p>
+        <h2>Field cards</h2>
+        <p>Complexity · Size · Graph nodes · Diff/architecture — see cards above in each family section. Skim these + the 90-second checklist to review a PR without reading the whole manual.</p>
+        <table>
+          <thead><tr><th>Start-here fails that reject S1</th><th>Accept S2</th></tr></thead>
+          <tbody>
+            <tr><td>Depth &gt; 3</td><td>Depth 2</td></tr>
+            <tr><td>New private FI1 + ≤4 stmts</td><td>0 such nodes</td></tr>
+            <tr><td>0 affected tests on behavior change</td><td>≥1</td></tr>
+            <tr><td>Ceremony types for one route</td><td>0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- GLOSSARY -->
+    <section class="section-break card" id="glossary">
+      <p class="lbl">Appendix</p>
+      <h2>Glossary</h2>
+      <table>
+        <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>Slop</td><td>Locally green, systemically red</td></tr>
+          <tr><td>Cyclomatic</td><td>Path count / test budget</td></tr>
+          <tr><td>Cognitive</td><td>Read cost; calls free; nesting costs</td></tr>
+          <tr><td>Fan-in / out</td><td>Callers / callees</td></tr>
+          <tr><td>Depth from entry</td><td>Hops from public API</td></tr>
+          <tr><td>ΔV / ΔE</td><td>Node / edge churn</td></tr>
+          <tr><td>Henry–Kafura</td><td>length × (FI × FO)²</td></tr>
+          <tr><td>Ceremony</td><td>Fake layer without reuse</td></tr>
+          <tr><td>Composition root</td><td>Legitimate high fan-out hub</td></tr>
+          <tr><td>Metric theater</td><td>Strict gates that train worse design</td></tr>
+          <tr><td>PR subgraph</td><td>Changed symbols + neighborhood</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- INDEX -->
+    <section class="card" id="index">
+      <p class="lbl">Appendix</p>
+      <h2>Index of examples</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Topic</th></tr></thead>
+        <tbody>
+          <tr><td>F1</td><td>Nested ifs vs early returns</td></tr>
+          <tr><td>F2</td><td>Flat HTTP match</td></tr>
+          <tr><td>F3</td><td>One-use is_active_user</td></tr>
+          <tr><td>F4</td><td>Guard list vs nested</td></tr>
+          <tr><td>F5</td><td>Inlining S1 wrappers</td></tr>
+          <tr><td>F6</td><td>parse_money fan-in 3</td></tr>
+          <tr><td>F7</td><td>Helpful vs slop file split</td></tr>
+          <tr><td>S1</td><td>Shopapi helper ladder</td></tr>
+          <tr><td>S2</td><td>Shopapi balanced place_order</td></tr>
+          <tr><td>M1</td><td>Healthy cells, diseased organ</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- YAML -->
+    <section class="section-break card" id="yaml">
+      <p class="lbl">Appendix · machine-readable</p>
+      <h2>machine-readable-thresholds.yaml</h2>
+      <p>Canonical copy also lives at the end of <code>metrics-against-slop.md</code>. Excerpt of defaults:</p>
+<pre><code>version: "1.0.0"
+rollout:
+  warn_only_days: 14
+  do_not_replace_local_linters: true
+function_control_flow:
+  cognitive_complexity: { warn_min: 8, fail_gt: 15 }
+  cyclomatic_complexity: { warn_min: 8, fail_gt: 12 }
+  max_nesting_depth: { warn_gte: 3, fail_gt: 4 }
+size:
+  file_tokens: { warn_gt: 2500, fail_gt: 4000 }
+  file_sloc: { warn_gt: 250, fail_gt: 450 }
+node_graph:
+  new_private_fan_in:
+    fail_if: { fan_in_eq: 1, max_body_statements: 4, visibility: private }
+  depth_from_public_entry: { warn_gt: 3, fail_gt: 3 }
+diff_graph:
+  delta_e_over_delta_v: { warn_gt: 2.0, fail_gt: 2.5 }
+  new_cycles: { fail_gt: 0 }
+architecture_shapes:
+  call_depth_budget_from_public_entry: 3
+  protocol_with_one_impl: fail
+shopapi_calibration:
+  reject_example: S1
+  accept_example: S2
+henry_kafura_ifc:
+  formula: "length * (fan_in * fan_out) ** 2"</code></pre>
+      <p>Full YAML block: see Markdown source of truth.</p>
+    </section>
+
+    <footer class="card" style="margin-top:2rem">
+      <p class="lbl">End</p>
+      <p class="thesis" style="font-size:1.1rem;border-left-color:var(--sage-600)">
+        Local metrics keep one function readable. Graph and diff metrics keep the system from turning into a cathedral of one-liners.
+      </p>
+      <p>Print the field cards. Calibrate on S1/S2. Pair graph gates with Ruff — never replace them.</p>
+    </footer>
+  </div>
+
+  <script>
+    document.getElementById("jump")?.addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (v) location.hash = v;
+      e.target.selectedIndex = 0;
+    });
+  </script>
+</body>
+</html>

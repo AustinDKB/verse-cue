@@ -1,0 +1,14 @@
+---
+description: Commit and push on main. No feature branches unless Austin asks.
+alwaysApply: true
+---
+
+# Ship on main
+
+Stay on `main`. Commit here, then `git push origin main`.
+
+Do not create a feature branch, pull request, or git worktree unless the user explicitly asks.
+
+Do not follow skills or habits that auto-branch off `main` (`ce-commit` step 4, `using-git-worktrees`, `finishing-a-development-branch`) unless the user asked for a branch.
+
+Still ask before force push, deploy, or schema removal.

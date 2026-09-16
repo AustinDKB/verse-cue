@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>verse-cue</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0b0f14;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        color: #f4f4f5;
+      }
+      .fill {
+        position: absolute;
+        inset: 0;
+        background: #0b0f14;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        padding: 120px 140px;
+      }
+      .kicker {
+        font-size: 22px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #7dd3a8;
+        margin-bottom: 28px;
+        font-weight: 600;
+      }
+      h1 {
+        font-size: 84px;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+        max-width: 1400px;
+      }
+      p.lede {
+        margin-top: 36px;
+        font-size: 36px;
+        line-height: 1.4;
+        color: #c4cdd6;
+        max-width: 1200px;
+      }
+      .row {
+        display: flex;
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .card {
+        width: 520px;
+        min-height: 280px;
+        padding: 36px;
+        background: #141b22;
+        border: 1px solid #243040;
+      }
+      .card h2 {
+        font-size: 28px;
+        margin-bottom: 16px;
+      }
+      .card p {
+        font-size: 24px;
+        line-height: 1.35;
+        color: #c4cdd6;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="32"
+      data-width="1920"
+      data-height="1080"
+    >
+      <audio id="vo" src="narration.wav" data-start="0" data-duration="32"></audio>
+      <div class="fill"></div>
+      <section id="s1" class="clip scene" data-start="0" data-duration="5" data-track-index="1">
+        <div class="kicker" id="s1k">Sunday morning</div>
+        <h1 id="s1h">Someone has to click Next all service.</h1>
+        <p class="lede" id="s1p">verse-cue does that from the vocal mic.</p>
+      </section>
+      <section id="s2" class="clip scene" data-start="5" data-duration="5" data-track-index="1">
+        <div class="kicker" id="s2k">The idea</div>
+        <h1 id="s2h">Read the slide. Listen. Fire before the last word.</h1>
+        <p class="lede" id="s2p">Early beats late. No song files to load.</p>
+      </section>
+      <section id="s3" class="clip scene" data-start="10" data-duration="6" data-track-index="1">
+        <div class="kicker" id="s3k">Three moving parts</div>
+        <div class="row">
+          <div class="card" id="c1">
+            <h2>Listen</h2>
+            <p>Word times from the vocal feed, a few seconds at a time.</p>
+          </div>
+          <div class="card" id="c2">
+            <h2>Match</h2>
+            <p>Align those words to the lyric already on screen.</p>
+          </div>
+          <div class="card" id="c3">
+            <h2>Advance</h2>
+            <p>Hit Next a little before the last word starts.</p>
+          </div>
+        </div>
+      </section>
+      <section id="s4" class="clip scene" data-start="16" data-duration="4" data-track-index="1">
+        <div class="kicker" id="s4k">Instrumental slides</div>
+        <h1 id="s4h">Blank slides wait for voice, then go.</h1>
+      </section>
+      <section id="s5" class="clip scene" data-start="20" data-duration="6" data-track-index="1">
+        <div class="kicker" id="s5k">Measured</div>
+        <h1 id="s5h">Bench it on your machine. Publish the timing.</h1>
+        <p class="lede" id="s5p">One file of config. One loop at runtime.</p>
+      </section>
+      <section id="s6" class="clip scene" data-start="26" data-duration="6" data-track-index="1">
+        <div class="kicker" id="s6k">Try it</div>
+        <h1 id="s6h">Rehearsal first. Send the metrics back.</h1>
+        <p class="lede" id="s6p">github.com/AustinDKB/verse-cue</p>
+      </section>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const fade = (sel, at) => {
+        tl.fromTo(sel, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, at);
+      };
+      fade("#s1k", 0.15);
+      fade("#s1h", 0.3);
+      fade("#s1p", 0.5);
+      fade("#s2k", 5.15);
+      fade("#s2h", 5.3);
+      fade("#s2p", 5.5);
+      fade("#s3k", 10.15);
+      fade("#c1", 10.35);
+      fade("#c2", 10.55);
+      fade("#c3", 10.75);
+      fade("#s4k", 16.15);
+      fade("#s4h", 16.3);
+      fade("#s5k", 20.15);
+      fade("#s5h", 20.3);
+      fade("#s5p", 20.5);
+      fade("#s6k", 26.15);
+      fade("#s6h", 26.3);
+      fade("#s6p", 26.5);
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

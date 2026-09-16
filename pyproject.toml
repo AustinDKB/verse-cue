@@ -1,0 +1,96 @@
+[project]
+name = "verse-cue"
+version = "0.1.0"
+description = "Auto-advance ProPresenter lyric slides from a live vocal feed"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = ["faster-whisper>=1.2.1", "sounddevice>=0.5", "numpy>=1.26"]
+
+[project.optional-dependencies]
+cuda = ["nvidia-cublas-cu12", "nvidia-cudnn-cu12>=9"]
+
+[project.scripts]
+verse-cue = "verse_cue:main"
+verse-cue-harvest = "harvest:main"
+
+[project.urls]
+Homepage = "https://github.com/AustinDKB/verse-cue"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-xdist>=3.8",
+    "pytest-cov>=7",
+    "ruff>=0.16",
+    "radon>=6",
+    "complexipy>=6",
+    "matplotlib>=3.9",
+    "yt-dlp>=2025.1.1",
+    "pre-commit>=4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["verse_cue.py", "harvest.py", "verse-cue.toml"]
+
+[tool.hatch.build.targets.sdist]
+include = ["verse_cue.py", "harvest.py", "verse-cue.toml", "songs.txt", "README.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "-n",
+    "auto",
+    "--cov=verse_cue",
+    "--cov=harvest",
+    "--cov-report=term-missing",
+    "--cov-fail-under=85",
+]
+markers = ["online: needs network and a model download (set VERSE_CUE_ONLINE=1)"]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = ["if __name__ == .__main__.:", "pragma: no cover"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+force-exclude = true
+exclude = ["vendor", "scripts", ".cursor", ".agents", ".pi", "media", "docs"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D",        # docstrings are written where they help, not everywhere
+    "ANN",      # type hints where they help; radon/complexipy are the gates
+    "T201",     # print is the CLI's output
+    "S603", "S607", "S310",  # subprocess (yt-dlp, nvidia-smi) and http urlopen are the job
+    "PLR2004",  # thresholds live in TOML; the few literals left are documented
+    "PLC0415",  # lazy imports keep startup fast and optional deps optional
+    "INP001",   # top-level scripts, not a package
+    "COM812", "ISC001",  # formatter owns these
+    "EM101", "EM102", "TRY003", "TRY300",  # short exception messages inline; return-in-try is fine at cc<=5
+    "ARG001",   # CLI argv is unused in stubs and in helpers that match a public signature
+    "A003",     # pp.next() mirrors ProPresenter's /trigger/next
+    "ICN001",   # `import matplotlib` (for matplotlib.use) has no conventional alias worth enforcing
+    "CPY",      # no per-file copyright banner; LICENSE covers the repo
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "PLR2004", "ARG", "SLF001", "FBT", "E501", "PTH", "PT018"]
+
+[tool.complexipy]
+paths = ["verse_cue.py", "harvest.py"]
+max-complexity-allowed = 10
+failed = true

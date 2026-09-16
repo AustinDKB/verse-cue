@@ -1,0 +1,117 @@
+"""End-to-end loop with scripted model and fake ProPresenter. Times are the capture clock (seconds)."""
+
+import json
+from pathlib import Path
+
+import pytest
+
+import verse_cue as vc
+from tests.conftest import ScriptedModel, ScriptedPP, silent_frames
+
+SLIDE = "Our God is an awesome God He reigns from heaven above"  # 11 words
+
+
+def words_at(offsets_words):
+    """[(offset_in_window, word)] -> scripted window [(start, end, word)]."""
+    return [(o, o + 0.3, w) for o, w in offsets_words]
+
+
+def run_with(windows, pp, cfg, t_ends):
+    waits = []
+    model = ScriptedModel(windows)
+    vc.run(silent_frames(t_ends), pp, model, cfg, wait=waits.append)
+    return model, waits
+
+
+def test_fires_early_from_extrapolation(cfg):
+    # window_s=4, hop_s=1. The 5th window (t_end=5, window start 1.0) hears the first five words at 0.4 s/word:
+    # capture times 2.0, 2.4, 2.8, 3.2, 3.6 (all after the guard: entered 1.0 + guard_s 0.3).
+    windows = [[]] * 4 + [words_at([(1.0, "our"), (1.4, "god"), (1.8, "is"), (2.2, "an"), (2.6, "awesome")])]
+    pp = ScriptedPP([("A", SLIDE), ("B", "something completely different here")])
+    _, waits = run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    # predicted = 3.6 + 6*0.4 - lead 0.3 = 5.7; due because 5.7 <= now(5+) + hop 1; fire at max(5.7, now) = 5.7
+    assert pp.fires == [pytest.approx(5.7)]
+    assert waits == pp.fires
+
+
+def test_identical_consecutive_slides_do_not_double_fire(cfg):
+    tail = words_at([(2.0, "reigns"), (2.4, "from"), (2.8, "heaven"), (3.2, "above")])  # window t_end=5, start 1
+    held = words_at([(3.5, "above")])  # window t_end=7, start 3 -> capture 6.5, one word only
+    windows = [[]] * 4 + [tail, [], held, [], []]
+    pp = ScriptedPP([("A", SLIDE), ("B", SLIDE), ("C", "x")])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8, 9])
+    assert len(pp.fires) == 1
+
+
+def test_blank_slide_fires_on_voice_after_settle(cfg, monkeypatch):
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: True)
+    pp = ScriptedPP([("BL", ""), ("A", SLIDE)])
+    run_with([[]] * 10, pp, cfg, [1, 2, 3, 4])
+    # entered at t=1, blank_settle_s=1.0 -> first eligible tick is t=2
+    assert pp.fires == [2]
+
+
+def test_no_slide_showing_never_fires(cfg, monkeypatch):
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: True)
+    pp = ScriptedPP([("", "")])
+    run_with([[]] * 10, pp, cfg, [1, 2, 3, 4, 5])
+    assert pp.fires == []
+
+
+def test_operator_change_during_inference_cancels_fire(cfg):
+    class SwitchingPP(ScriptedPP):
+        def slide(self):
+            if self.reads == 5:  # the re-check inside fire() after the 5th window
+                self.set(1)
+            return super().slide()
+
+    # window t_end=5 (start 1.0): the whole tail at captures 2.0..3.2 -> matched 4 -> would fire at ~5.0
+    windows = [[]] * 4 + [words_at([(1.0, "reigns"), (1.4, "from"), (1.8, "heaven"), (2.2, "above")])]
+    pp = SwitchingPP([("A", SLIDE), ("B", "other")])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5])
+    assert pp.fires == []
+
+
+def test_operator_change_resets_progress(cfg):
+    # The operator jumps to slide B at t=4. Hearing slide A's tail afterwards must not fire;
+    # hearing slide B's tail must.
+    slide_b = "we will sing your praise forever and ever amen"  # 9 words -> min_matched = min(4, 5) = 4
+    a_tail = words_at([(3.0, "reigns"), (3.4, "from"), (3.8, "heaven"), (4.2, "above")])  # window t=6, start 2
+    b_tail = words_at([(2.0, "forever"), (2.4, "and"), (2.8, "ever"), (3.2, "amen")])  # window t=8, start 4
+    windows = [[]] * 5 + [a_tail, [], b_tail, [], []]
+    pp = ScriptedPP([("A", SLIDE), ("B", slide_b), ("C", "x")])
+
+    def frames():
+        for t in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+            if t == 4:
+                pp.set(1)
+            yield from silent_frames([t])
+
+    vc.run(frames(), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
+    # b_tail captures 6.0..7.2 -> predicted 7.2 - 0.3 = 6.9 -> fired at now ~= 8.0
+    assert len(pp.fires) == 1
+    assert pp.fires[0] == pytest.approx(8.0, abs=0.05)
+    rows = [json.loads(line) for line in Path(cfg["metrics_file"]).read_text().splitlines()]
+    assert [(r["event"], r["uuid"]) for r in rows] == [("enter", "A"), ("enter", "B"), ("fire", "B"), ("enter", "C")]
+
+
+def test_metrics_log_has_enter_and_fire_rows(cfg):
+    windows = [[]] * 4 + [words_at([(1.0, "reigns"), (1.4, "from"), (1.8, "heaven"), (2.2, "above")])]
+    pp = ScriptedPP([("A", SLIDE), ("B", "other")])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6])
+    rows = [json.loads(line) for line in Path(cfg["metrics_file"]).read_text().splitlines()]
+    events = [r["event"] for r in rows]
+    assert events == ["enter", "fire", "enter"]
+    fire = rows[1]
+    assert fire["uuid"] == "A"
+    assert fire["n_words"] == 11
+    assert fire["matched"] == 4
+    assert fire["idx_from_end"] == 0
+    assert fire["window_s"] == 4.0
+
+
+def test_sleep_until_does_not_sleep_for_the_past(monkeypatch):
+    slept = []
+    monkeypatch.setattr(vc.time, "sleep", slept.append)
+    vc.sleep_until(vc.time.monotonic() - 10)
+    assert slept == [0.0]
