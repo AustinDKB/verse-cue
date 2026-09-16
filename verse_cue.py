@@ -102,7 +102,10 @@ def predict(pairs: list[tuple[int, float]], n_words: int, d: dict) -> float | No
     """Capture-clock time to fire: last-word start from singing rate, minus lead. None when evidence is thin."""
     if len(pairs) < min(d["min_matched"], math.ceil(n_words / 2)):
         return None
-    if pairs[-1][0] < max(n_words - d["tail_words"], n_words // 2):
+    need = n_words - d["tail_words"]
+    if d.get("first_half", True):
+        need = max(need, n_words // 2)
+    if pairs[-1][0] < need:
         return None
     (i0, t0), (i1, t1) = pairs[0], pairs[-1]
     rate = (t1 - t0) / (i1 - i0) if i1 - i0 >= 2 else d["default_sec_per_word"]
@@ -121,6 +124,7 @@ class Slide:
     entered: float = 0.0
     predicted: float | None = None
     pairs: list[tuple[int, float]] = field(default_factory=list)
+    any_match: bool = False
 
 
 def transcribe(model, audio: np.ndarray, t_start: float, m: dict, prompt: str) -> tuple[list, float]:
@@ -223,6 +227,15 @@ def decide(slide: Slide, predicted: float | None, now: float, hop_s: float) -> f
     return max(slide.predicted, now)
 
 
+def overdue(slide: Slide, d: dict, now: float) -> float | None:
+    """Late salvage: click now if we ever matched and the slide has lasted a full reading."""
+    if not d.get("deadline_fire") or not slide.any_match:
+        return None
+    if now - slide.entered < len(slide.words) * d["default_sec_per_word"]:
+        return None
+    return now
+
+
 def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> float | None:
     """Transcribe the window, align to the slide, return the time to fire or None."""
     audio = np.concatenate(ring)
@@ -232,7 +245,11 @@ def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> flo
     heard = merge(slide, latest, start, slide.entered + d["guard_s"])
     heard = canon(heard, set(slide.words), cfg["aliases"], d["fuzzy_cutoff"])
     slide.pairs = align(slide.words, heard)
-    return decide(slide, predict(slide.pairs, len(slide.words), d), t_end + infer, cfg["model"]["hop_s"])
+    slide.any_match = slide.any_match or bool(slide.pairs)
+    now = t_end + infer
+    return decide(slide, predict(slide.pairs, len(slide.words), d), now, cfg["model"]["hop_s"]) or overdue(
+        slide, d, now
+    )
 
 
 def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> None:

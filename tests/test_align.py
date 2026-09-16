@@ -46,6 +46,12 @@ def test_predict_none_in_first_half_even_if_in_tail_window():
     assert vc.predict(pairs, 8, d) is None
 
 
+def test_predict_first_half_gate_can_be_disabled():
+    d = {**D, "tail_words": 6, "min_matched": 4, "first_half": False}
+    pairs = [(0, 1.0), (1, 1.4), (2, 1.8), (3, 2.2)]
+    assert vc.predict(pairs, 8, d) is not None
+
+
 def test_predict_min_matched_shrinks_for_short_slides():
     # 3-word slide: min(4, ceil(3/2)=2) = 2 matched words is enough
     assert vc.predict([(0, 1.0), (1, 1.4)], 3, D) is not None

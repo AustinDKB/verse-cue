@@ -32,6 +32,23 @@ def test_opening_words_do_not_fire(cfg):
     assert waits == []
 
 
+def test_deadline_fire_clicks_after_expected_duration(cfg):
+    cfg["decide"]["deadline_fire"] = True
+    opening = words_at([(1.0, "our"), (1.4, "god"), (1.8, "is"), (2.2, "an"), (2.6, "awesome")])
+    windows = [[]] * 4 + [opening] + [[]] * 6
+    pp = ScriptedPP([("A", SLIDE), ("B", "something completely different here")])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    # entered t=1; 11 * 0.45s = 4.95s; first eligible tick is t=6 even if the tail never arrived
+    assert pp.fires == [pytest.approx(6.0, abs=0.05)]
+
+
+def test_deadline_fire_does_not_click_without_matches(cfg):
+    cfg["decide"]["deadline_fire"] = True
+    pp = ScriptedPP([("A", SLIDE), ("B", "x")])
+    run_with([[]] * 20, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    assert pp.fires == []
+
+
 def test_identical_consecutive_slides_do_not_double_fire(cfg):
     tail = words_at([(2.0, "reigns"), (2.4, "from"), (2.8, "heaven"), (3.2, "above")])  # window t_end=5, start 1
     held = words_at([(3.5, "above")])  # window t_end=7, start 3 -> capture 6.5, one word only
