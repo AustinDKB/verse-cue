@@ -52,8 +52,10 @@ Optional: `verse-cue-harvest vocals` writes `data/vocals/` stems (Demucs; mixes 
 ## Measured
 
 Live pick after the GPU passes: `small.en`, false **14.6** / miss **25.9** /
-p90 **12.1** (hop 0.5; production hop is 1.0 so RTF stays above 4×). What moves
-each metric: [docs/metrics/miss-and-false.md](docs/metrics/miss-and-false.md).
+p90 **12.1** (hop 0.5; production hop is 1.0 so RTF stays above 4×). Every
+metric and every `verse-cue.toml` key:
+[docs/metrics/explainer.md](docs/metrics/explainer.md). What moves miss vs
+false: [docs/metrics/miss-and-false.md](docs/metrics/miss-and-false.md).
 
 ![fire timing](docs/metrics/delta_hist.png)
 ![RTF per model](docs/metrics/rtf_vs_model.png)
@@ -61,18 +63,11 @@ each metric: [docs/metrics/miss-and-false.md](docs/metrics/miss-and-false.md).
 
 ## Configuration
 
-One file, `verse-cue.toml`.
-
-- `[propresenter]` host and port
-- `[audio]` input device name
-- `[model]` Whisper id, window, hop, prompt mode
-- `[decide]` lead, guard, match thresholds
-- `[blank]` VAD settle for instrumental slides
-- `[hardware]` fallback only if `[model].name` is empty (live name is `small.en`)
-- `[alias]` / `[bench]` harvest-tool settings
+One file, `verse-cue.toml`. Line-by-line:
+[docs/metrics/explainer.md](docs/metrics/explainer.md).
 
 `verse-cue.auto.toml` (written by bench) overrides `[model]`. Do not drop one in
-for tonight — it would replace the locked live model.
+for a live run — it would replace the locked model.
 
 ## Limitations
 
