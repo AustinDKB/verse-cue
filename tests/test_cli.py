@@ -1,4 +1,4 @@
-"""--setup rewrites device and port in place; main wires config -> aliases -> PP -> model -> run."""
+"""--setup rewrites device, host, and port; main wires config -> aliases -> PP -> model -> run."""
 
 import sys
 from types import SimpleNamespace
@@ -20,27 +20,32 @@ def fake_sounddevice(monkeypatch):
 
 def test_setup_prompts_for_input_device_and_port(workdir, monkeypatch, capsys):
     fake_sounddevice(monkeypatch)
-    answers = iter(["1", "1030"])
+    answers = iter(["1", "10.0.0.5", "1030"])
     monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
-    monkeypatch.setattr(vc, "gpu_gb", lambda: 0.0)
+    monkeypatch.setattr(vc, "lan_ip", lambda: "192.168.1.50")
     vc.setup()
     text = (workdir / "verse-cue.toml").read_text()
     assert 'device = "Focusrite USB"' in text
+    assert 'host = "10.0.0.5"' in text
     assert "port = 1030" in text
     out = capsys.readouterr().out
     assert "1: Focusrite USB" in out
     assert "0: Monitor of Built-in" not in out  # outputs are not offered
-    assert "small.en" in out  # hardware pick echoed
+    assert "10.0.0.5:1030" in out
+    assert "192.168.1.50" in out
+    assert "Network API" in out
+    assert "small.en" in out
 
 
 def test_setup_keeps_default_port_on_empty_answer(workdir, monkeypatch):
     fake_sounddevice(monkeypatch)
-    answers = iter(["2", ""])
+    answers = iter(["2", "", ""])
     monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
-    monkeypatch.setattr(vc, "gpu_gb", lambda: 0.0)
+    monkeypatch.setattr(vc, "lan_ip", lambda: "127.0.0.1")
     vc.setup()
     text = (workdir / "verse-cue.toml").read_text()
     assert 'device = "Webcam Mic"' in text
+    assert 'host = "127.0.0.1"' in text
     assert "port = 1025" in text
 
 
@@ -61,7 +66,7 @@ def test_main_wires_run(workdir, monkeypatch):
     vc.main([])
     assert seen["model"] == "MODEL"
     assert seen["pp"].base == "http://127.0.0.1:1025/v1"
-    assert seen["cfg"]["aliases"] == {}
+    assert seen["cfg"]["aliases"] == vc.load_aliases(vc.DEFAULT_ALIASES)
 
 
 def test_main_help_does_not_start_the_loop(monkeypatch, capsys):

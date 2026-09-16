@@ -1,0 +1,23 @@
+{
+  "cell": "D15",
+  "name": "small.en",
+  "window_s": 4.0,
+  "deadline_fire": true,
+  "deadline_sec_per_word": 1.5,
+  "hop_s": 1.0,
+  "prompt_mode": "none",
+  "tail_words": 3,
+  "first_half": true,
+  "min_matched": 4,
+  "n_aliases": 138,
+  "n": 185,
+  "median_delta": -1.4687660698592708,
+  "p90_abs_delta": 10.773162553995846,
+  "early_pct": 52.4,
+  "late_pct": 9.7,
+  "missed_pct": 28.1,
+  "false_pct": 12.4,
+  "rtf": 4.97,
+  "n_songs": 6,
+  "elapsed_s": 523.2
+}
