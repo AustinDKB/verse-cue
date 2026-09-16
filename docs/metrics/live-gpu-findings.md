@@ -85,9 +85,27 @@ that can move both:
 
 Do not use `prompt=slide`. Hop 0.5 still fits on tiny (~12×) if miss stays high.
 
-## Next measurement
+## tiny / small / distil + tail_words=6, no remaining-word extrapolation
 
-One dedicated GPU pass: `tiny.en`, `small.en`, `distil-large-v3`, `window=4`,
-`hop=1`, `prompt=none`, `tail_words=6`, no remaining-word extrapolation,
-aliases on. Results go in `docs/metrics/model-compare-tail.json` when that
-run finishes.
+L4, `window=4 hop=1 prompt=none`, aliases on, fire at last *heard* tail-word
+start minus lead (no rate guess). Raw rows:
+`docs/metrics/model-compare-tail.json`. 744 s wall.
+
+| model | rtf | false% | miss% | p90 | early% |
+|---|---:|---:|---:|---:|---:|
+| tiny.en | 15.29 | 28.1 | 28.6 | 38.1 | 57.3 |
+| **small.en** | 8.97 | **24.3** | 24.9 | **11.9** | 65.4 |
+| distil-large-v3 | 8.47 | 29.7 | **22.2** | 13.7 | 67.6 |
+
+Versus dedicated tiny with no tail gate (false 26.5 / miss 28.6 / p90 38):
+`small.en` moved all three the right way — false 26.5→24.3, miss 28.6→24.9,
+p90 38→11.9 — and stayed ~9× realtime.
+
+Versus tiny + tail + still-extrapolating (false 19.5 / miss 33.0 / p90 19.9):
+dropping extrapolation made tiny *earlier* (false 19.5→28.1). Clicking at the
+first tail hearing is sooner than guessing the last-word time. Distil still
+wins miss; tiny+extrapolate still wins false.
+
+`small.en` is the best single point if the goal is improve both versus the
+original live tiny config. Going larger than small mostly buys a little more
+miss at worse false. All three still smash the 4× RTF gate.
