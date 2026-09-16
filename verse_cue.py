@@ -99,12 +99,15 @@ def align(slide_words: list[str], heard: list[tuple[float, str]]) -> list[tuple[
 
 
 def predict(pairs: list[tuple[int, float]], n_words: int, d: dict) -> float | None:
-    """Capture-clock time to fire: last heard tail-word start minus lead. None when evidence is thin."""
+    """Capture-clock time to fire: last-word start from singing rate, minus lead. None when evidence is thin."""
     if len(pairs) < min(d["min_matched"], math.ceil(n_words / 2)):
         return None
-    if pairs[-1][0] < n_words - d["tail_words"]:
+    if pairs[-1][0] < max(n_words - d["tail_words"], n_words // 2):
         return None
-    return pairs[-1][1] - d["lead_s"]
+    (i0, t0), (i1, t1) = pairs[0], pairs[-1]
+    rate = (t1 - t0) / (i1 - i0) if i1 - i0 >= 2 else d["default_sec_per_word"]
+    lo, hi = d["rate_bounds"]
+    return t1 + (n_words - 1 - i1) * min(max(rate, lo), hi) - d["lead_s"]
 
 
 @dataclass
