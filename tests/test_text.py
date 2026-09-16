@@ -27,6 +27,13 @@ def test_load_aliases_missing_file_is_empty(tmp_path):
     assert vc.load_aliases(tmp_path / "nope.json") == {}
 
 
+def test_load_aliases_cwd_missing_uses_bundled(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    inv = vc.load_aliases()
+    assert inv
+    assert inv == vc.load_aliases(vc.DEFAULT_ALIASES)
+
+
 def test_canon_alias_then_fuzzy_then_passthrough():
     heard = [(0.0, "grays"), (0.5, "amazin"), (1.0, "xylophone"), (1.5, "grace")]
     out = vc.canon(heard, {"amazing", "grace"}, {"grays": "grace"}, 0.8)

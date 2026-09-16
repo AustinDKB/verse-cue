@@ -10,7 +10,7 @@ device = ""            # substring of the input device name; set by `verse-cue -
 sample_rate = 16000
 
 [model]
-name = ""              # "" -> chosen from [hardware]; else a faster-whisper model id
+name = "small.en"      # live pick; "" would choose from [hardware]
 compute_type = "auto"
 window_s = 4.0         # seconds of audio per transcription
 hop_s = 1.0            # seconds between transcriptions; must be >= window_s / RTF
@@ -25,7 +25,8 @@ rate_bounds = [0.15, 1.5]  # clamp for the measured seconds-per-word
 min_matched = 4        # fewer matched words than min(this, ceil(n/2)) never fires
 tail_words = 3         # last match must be in the last N words (how an operator waits to click)
 first_half = true      # also require last match past the midpoint of the slide text
-deadline_fire = false  # if any words matched, click after n_words * default_sec_per_word
+deadline_fire = false  # if any words matched, click after n_words * deadline_sec_per_word
+deadline_sec_per_word = 0.45  # slower than singing (1.0–1.5) to stay after midpoint
 fuzzy_cutoff = 0.8     # difflib ratio for words not in the alias table
 
 [blank]
@@ -34,7 +35,8 @@ blank_settle_s = 1.0   # ignore voice this long after entering a blank slide
 
 [hardware]
 # VRAM GB threshold -> [threshold, model, compute_type]; first row whose threshold <= VRAM wins.
-gpu = [[8, "large-v3-turbo", "float16"], [4, "distil-large-v3", "int8_float16"], [0, "small.en", "int8"]]
+# Live testing is pinned to small.en above; this table is only used if [model].name is "".
+gpu = [[0, "small.en", "float16"]]
 cpu = ["small.en", "int8"]
 
 [alias]

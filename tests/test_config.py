@@ -17,6 +17,13 @@ def test_load_config_falls_back_to_bundled_default(tmp_path):
     cfg = vc.load_config(tmp_path / "missing.toml", tmp_path / "none.toml")
     assert cfg["propresenter"]["port"] == 1025
     assert cfg["model"]["prompt_mode"] == "none"
+    assert cfg["model"]["name"] == "small.en"
+    assert cfg["model"]["window_s"] == 4.0
+    assert cfg["model"]["hop_s"] == 1.0
+    assert cfg["decide"]["tail_words"] == 3
+    assert cfg["decide"]["first_half"] is True
+    assert cfg["decide"]["min_matched"] == 4
+    assert cfg["decide"]["deadline_fire"] is False
 
 
 def test_pick_model_walks_gpu_table_then_cpu():

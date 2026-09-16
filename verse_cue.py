@@ -28,6 +28,7 @@ AUTO = Path("verse-cue.auto.toml")
 ALIASES = Path("aliases.json")
 METRICS = Path("metrics.jsonl")
 DEFAULT_CONFIG = Path(__file__).with_name("verse-cue.toml")
+DEFAULT_ALIASES = Path(__file__).with_name("aliases.json")
 WORD_RE = re.compile(r"[^a-z']+")
 
 
@@ -71,8 +72,26 @@ def tokens(text: str) -> list[str]:
     return [w for w in WORD_RE.sub(" ", text.lower()).split() if w.strip("'")]
 
 
+def lan_ip() -> str:
+    """This machine's LAN address, for the setup printout. 127.0.0.1 if we cannot tell."""
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("1.1.1.1", 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
+
+def _alias_file(path: Path) -> Path:
+    """CWD aliases.json, else the copy shipped next to this module."""
+    return DEFAULT_ALIASES if path == ALIASES and not path.exists() else path
+
+
 def load_aliases(path: Path = ALIASES) -> dict[str, str]:
     """Invert {canonical: {alias: count}} into {alias: canonical}; highest count wins; canonicals stay."""
+    path = _alias_file(path)
     table = json.loads(path.read_text()) if path.exists() else {}
     best: dict[str, tuple[int, str]] = {}
     for canon, al in table.items():
@@ -231,7 +250,8 @@ def overdue(slide: Slide, d: dict, now: float) -> float | None:
     """Late salvage: click now if we ever matched and the slide has lasted a full reading."""
     if not d.get("deadline_fire") or not slide.any_match:
         return None
-    if now - slide.entered < len(slide.words) * d["default_sec_per_word"]:
+    rate = d.get("deadline_sec_per_word", d["default_sec_per_word"])
+    if now - slide.entered < len(slide.words) * rate:
         return None
     return now
 
@@ -298,18 +318,30 @@ def mic_frames(device: str, hop_s: float):  # pragma: no cover - needs audio har
             yield q.get()
 
 
-def setup(path: Path = CONFIG) -> None:
-    """Interactive: pick the input device and ProPresenter port; rewrite those two lines in the TOML."""
+def pick_input() -> str:
+    """Numbered list of capture devices; return the name the operator typed."""
     import sounddevice as sd
 
     inputs = [(i, d["name"]) for i, d in enumerate(sd.query_devices()) if d["max_input_channels"] > 0]
     for i, name in inputs:
         print(f"{i}: {name}")
-    device = dict(inputs)[int(input("Input device number: "))]
+    return dict(inputs)[int(input("Input device number: "))]
+
+
+def setup(path: Path = CONFIG) -> None:
+    """Interactive: pick the vocal input and ProPresenter host/port; print how to connect."""
+    device = pick_input()
+    host = input("ProPresenter IP [127.0.0.1]: ").strip() or "127.0.0.1"
     port = int(input("ProPresenter port [1025]: ").strip() or "1025")
-    text = re.sub(r"(?m)^device = .*$", f'device = "{device}"', path.read_text())
-    path.write_text(re.sub(r"(?m)^port = .*$", f"port = {port}", text))
-    print("device:", device, "| port:", port, "| model:", pick_model(load_config(path)["hardware"], gpu_gb()))
+    text = path.read_text()
+    text = re.sub(r"(?m)^device = .*$", f'device = "{device}"', text)
+    text = re.sub(r"(?m)^host = .*$", f'host = "{host}"', text)
+    text = re.sub(r"(?m)^port = .*$", f"port = {port}", text)
+    path.write_text(text)
+    print(f"verse-cue will connect to ProPresenter at {host}:{port}")
+    print(f"This computer's IP: {lan_ip()}")
+    print(f"On ProPresenter: Preferences -> Network -> enable Network API, port {port}")
+    print("device:", device, "| model:", load_config(path)["model"]["name"])
 
 
 def main(argv: list[str] | None = None) -> None:
