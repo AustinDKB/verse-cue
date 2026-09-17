@@ -117,11 +117,11 @@ def isolate(src: Path, dest: Path) -> bool:
     tmp = dest.parent / "_demucs"
     # uv --with: demucs stays out of .venv (aliases may be running)
     cmd = ["uv", "run", "--with", "demucs", "python", "-m", "demucs"]
-    cmd += ["--two-stems=vocals", "-n", "htdemucs", "-o", str(tmp), str(src)]
+    cmd += ["--two-stems=vocals", "-n", "htdemucs_ft", "-o", str(tmp), str(src)]
     if subprocess.run(cmd, check=False).returncode:
         print("demucs failed:", src.name)
         return False
-    stem = tmp / "htdemucs" / src.stem / "vocals.wav"
+    stem = tmp / "htdemucs_ft" / src.stem / "vocals.wav"
     ff = ["ffmpeg", "-y", "-i", str(stem), "-ar", "16000", "-ac", "1", str(dest)]
     return subprocess.run(ff, check=False).returncode == 0 and dest.exists()
 

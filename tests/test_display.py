@@ -2,6 +2,7 @@
 
 import io
 
+import hop_view as hv
 import verse_cue as vc
 
 
@@ -9,7 +10,7 @@ def test_paint_dims_unmatched_greens_heard_yellows_cue_tail():
     words = ["our", "god", "is", "an", "awesome", "god", "he", "reigns", "from", "heaven", "above"]
     matched = {0, 1, 7, 8, 9, 10}  # our god … reigns from heaven above
     cue = {8, 9, 10}  # last 3, the words that can arm Next
-    out = vc.paint(words, matched, cue)
+    out = hv.paint(words, matched, cue)
     assert "\033[2mour\033[0m" not in out  # matched opening is green, not dim
     assert "\033[32mour\033[0m" in out
     assert "\033[2mis\033[0m" in out
@@ -20,8 +21,8 @@ def test_paint_dims_unmatched_greens_heard_yellows_cue_tail():
 
 def test_cue_set_is_matched_words_at_or_past_the_arm_index():
     # 11 words, tail 3, first_half on -> need max(8, 5) = 8
-    assert vc.cue_set(11, {0, 1, 7, 8, 10}, tail=3, first_half=True) == {8, 10}
-    assert vc.cue_set(11, {0, 1, 7}, tail=3, first_half=True) == set()
+    assert hv.cue_set(11, {0, 1, 7, 8, 10}, tail=3, first_half=True) == {8, 10}
+    assert hv.cue_set(11, {0, 1, 7}, tail=3, first_half=True) == set()
 
 
 def test_show_prints_transcript_and_painted_current_slide():
@@ -29,7 +30,7 @@ def test_show_prints_transcript_and_painted_current_slide():
     slide.raw = ["our", "god", "is", "great"]
     slide.pairs = [(0, 1.0), (4, 2.0), (5, 2.4)]
     buf = io.StringIO()
-    vc.show(slide, {"tail_words": 3, "first_half": True}, file=buf)
+    hv.show(slide, {"tail_words": 3, "first_half": True}, file=buf)
     text = buf.getvalue()
     assert "heard  our god is great" in text
     assert "slide  " in text
@@ -47,11 +48,11 @@ def test_show_redraws_in_place_on_a_tty():
     slide.raw = ["our"]
     d = {"tail_words": 3, "first_half": True}
     buf = Tty()
-    vc.LIVE.update(rows=0, uuid=None)
-    vc.show(slide, d, file=buf)
+    hv.LIVE.update(rows=0, uuid=None, paused=False)
+    hv.show(slide, d, file=buf)
     slide.raw = ["our", "god"]
     slide.pairs = [(0, 1.0), (1, 1.4)]
-    vc.show(slide, d, file=buf)
+    hv.show(slide, d, file=buf)
     text = buf.getvalue()
     assert "heard  our god" in text
     assert "\033[2F" in text
@@ -63,15 +64,15 @@ def test_show_redraws_in_place_on_a_tty():
 def test_show_starts_a_new_block_when_the_slide_changes():
     d = {"tail_words": 3, "first_half": True}
     buf = Tty()
-    vc.LIVE.update(rows=0, uuid=None)
+    hv.LIVE.update(rows=0, uuid=None, paused=False)
     a = vc.Slide("A", ["our", "god"])
     a.raw = ["our"]
-    vc.show(a, d, file=buf)
+    hv.show(a, d, file=buf)
     a.raw = ["our", "god"]
-    vc.show(a, d, file=buf)
+    hv.show(a, d, file=buf)
     b = vc.Slide("B", ["he", "reigns"])
     b.raw = ["reigns"]
-    vc.show(b, d, file=buf)
+    hv.show(b, d, file=buf)
     text = buf.getvalue()
     assert text.count("\033[2F") == 1
     assert "heard  our god" in text
@@ -94,7 +95,8 @@ def test_run_writes_display_each_lyric_hop(cfg, tmp_path):
 def test_show_paused_replaces_the_heard_line():
     slide = vc.Slide("A", ["our", "god"])
     buf = io.StringIO()
-    vc.show(slide, {"tail_words": 3, "first_half": True}, file=buf, paused=True)
+    hv.LIVE.update(rows=0, uuid=None, paused=False)
+    hv.show(slide, {"tail_words": 3, "first_half": True}, file=buf, paused=True)
     text = buf.getvalue()
     assert "paused  space to resume" in text
     assert "slide  " in text

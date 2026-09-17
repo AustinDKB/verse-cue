@@ -22,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 
+from hop_view import LIVE, _enable_vt, show
+
 SR = 16000
 CONFIG = Path("verse-cue.toml")
 AUTO = Path("verse-cue.auto.toml")
@@ -30,7 +32,6 @@ METRICS = Path("metrics.jsonl")
 DEFAULT_CONFIG = Path(__file__).with_name("verse-cue.toml")
 DEFAULT_ALIASES = Path(__file__).with_name("aliases.json")
 WORD_RE = re.compile(r"[^a-z']+")
-LIVE = {"rows": 0, "vt": False, "uuid": None}
 
 
 def load_config(path: Path = CONFIG, auto: Path = AUTO) -> dict:
@@ -279,64 +280,6 @@ def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> flo
     )
 
 
-def paint(words: list[str], matched: set[int], cue: set[int]) -> str:
-    """Dim unmatched, green heard-on-slide, yellow tail matches that can arm Next."""
-    parts = []
-    for i, w in enumerate(words):
-        code = "\033[33m" if i in cue else "\033[32m" if i in matched else "\033[2m"
-        parts.append(f"{code}{w}\033[0m")
-    return " ".join(parts)
-
-
-def cue_set(n: int, matched: set[int], *, tail: int, first_half: bool) -> set[int]:
-    """Slide indexes that are both matched and far enough along to arm a click."""
-    need = n - tail
-    if first_half:
-        need = max(need, n // 2)
-    return {i for i in matched if i >= need}
-
-
-def _enable_vt(file) -> None:
-    """Turn on Windows virtual-terminal sequences so in-place redraw works in conhost."""
-    if LIVE["vt"] or sys.platform != "win32" or file not in (sys.stderr, sys.stdout):
-        return
-    import ctypes
-
-    handle = ctypes.windll.kernel32.GetStdHandle(-12 if file is sys.stderr else -11)
-    mode = ctypes.c_uint32()
-    if ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-        ctypes.windll.kernel32.SetConsoleMode(handle, mode.value | 4)
-    LIVE["vt"] = True
-
-
-def redraw(file, lines: tuple[str, ...]) -> None:
-    """Replace the current slide's block on a TTY; append when piped (tests, logs)."""
-    tty = hasattr(file, "isatty") and file.isatty()
-    if not tty:
-        print("\n".join(lines), file=file)
-        return
-    _enable_vt(file)
-    if LIVE["rows"]:
-        file.write(f"\033[{LIVE['rows']}F")
-    for line in lines:
-        file.write(f"\033[2K{line}\n")
-    file.flush()
-    LIVE["rows"] = len(lines)
-
-
-def show(slide: Slide, d: dict, file=sys.stderr, *, paused: bool = False) -> None:
-    """Keep one heard/slide block per ProPresenter slide; rewrite it as words match."""
-    if file is None:
-        return
-    if LIVE.get("uuid") != slide.uuid:
-        LIVE["rows"] = 0
-        LIVE["uuid"] = slide.uuid
-    matched = {i for i, _ in slide.pairs}
-    cues = cue_set(len(slide.words), matched, tail=d["tail_words"], first_half=d.get("first_half", True))
-    heard = "paused  space to resume" if paused else f"heard  {' '.join(slide.raw) or '…'}"
-    redraw(file, (heard, f"slide  {paint(slide.words, matched, cues) or '(blank)'}"))
-
-
 def pending_keys() -> list[str]:
     """Non-blocking console keypresses. Empty when stdin is not a TTY (tests, pipes, bench)."""
     if not sys.stdin.isatty():
@@ -379,14 +322,6 @@ def sync_slide(slide: Slide, pp, t_end: float, cfg: dict) -> Slide:
     return slide
 
 
-def decide_hop(slide: Slide, ring, t_end: float, model, cfg: dict) -> float | None:
-    """Transcribe a lyric slide or VAD a blank; None means do not fire this hop."""
-    chunk = ring[-1]
-    if not slide.words:
-        return blank_tick(slide, chunk, t_end, cfg["blank"])
-    return lyric_tick(slide, ring, t_end, model, cfg)
-
-
 def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
     """The loop. frames yields (t_end, hop-sized float32 chunk); pp has .slide() and .next(at)."""
     m = cfg["model"]
@@ -404,7 +339,11 @@ def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
             continue
         ring.append(chunk)
         slide = sync_slide(slide, pp, t_end, cfg)
-        at = decide_hop(slide, ring, t_end, model, cfg)
+        at = (
+            blank_tick(slide, ring[-1], t_end, cfg["blank"])
+            if not slide.words
+            else lyric_tick(slide, ring, t_end, model, cfg)
+        )
         show(slide, cfg["decide"], out)
         if at is not None:
             fire(pp, slide, at, wait, cfg)
@@ -471,6 +410,7 @@ def main(argv: list[str] | None = None) -> None:
     cfg["aliases"] = load_aliases()
     pp = ProPresenter(cfg["propresenter"]["host"], cfg["propresenter"]["port"])
     print("space or p pauses detection", file=sys.stderr)
+    _enable_vt()
     run(mic_frames(cfg["audio"]["device"], cfg["model"]["hop_s"]), pp, load_model(cfg), cfg)
 
 

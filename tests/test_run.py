@@ -1,5 +1,6 @@
 """End-to-end loop with scripted model and fake ProPresenter. Times are the capture clock (seconds)."""
 
+import io
 import json
 from pathlib import Path
 
@@ -176,3 +177,22 @@ def test_resume_detects_again_after_pause(cfg):
     cfg["keys"] = _keys([" "], [], [], [], [" "], [], [], [], [])
     vc.run(silent_frames([1, 2, 3, 4, 5, 6, 7, 8, 9]), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
     assert len(pp.fires) == 1
+
+
+def test_pause_prints_resume_hint_once_until_the_slide_changes(cfg):
+    buf = io.StringIO()
+    cfg["display"] = buf
+    cfg["keys"] = _keys([" "], [], [], [], [])
+    pp = ScriptedPP([("A", SLIDE), ("B", "other words on the next slide")])
+    import hop_view as hv
+
+    hv.LIVE.update(rows=0, uuid=None, paused=False)
+
+    def frames():
+        for t in [1, 2, 3, 4, 5]:
+            if t == 4:
+                pp.set(1)
+            yield from silent_frames([t])
+
+    vc.run(frames(), pp, ScriptedModel([[]] * 5), cfg, wait=lambda _t: None)
+    assert buf.getvalue().count("paused  space to resume") == 2
