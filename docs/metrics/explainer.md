@@ -48,7 +48,7 @@ gates do the reverse.
 **host** — IP of the machine running ProPresenter. Same computer:
 `127.0.0.1`. GPU box + ProPresenter on a Mac: the Mac’s LAN IP.
 
-**port** — ProPresenter Network API port, default `1025`. Enable it under
+**port** — ProPresenter Network API port, default `50001`. Enable it under
 Preferences → Network → Network API. verse-cue calls
 `http://host:port/v1/status/slide` and `/v1/trigger/next`.
 

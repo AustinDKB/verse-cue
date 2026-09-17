@@ -3,7 +3,7 @@
 
 [propresenter]
 host = "127.0.0.1"
-port = 1025
+port = 50001
 
 [audio]
 device = ""            # substring of the input device name; set by `verse-cue --setup`

@@ -35,7 +35,7 @@ verse-cue
 ```
 
 `--setup` lists **input** devices, then asks for the ProPresenter computer's
-IP (default `127.0.0.1` if it is this machine) and port (default `1025`). It
+IP (default `127.0.0.1` if it is this machine) and port (default `50001`). It
 prints the `ip:port` verse-cue will call, this computer's LAN IP, and
 **Preferences → Network → Network API** on that port. Setup only writes mic +
 host/port. The rest of `verse-cue.toml` is the locked live pick below.
@@ -67,7 +67,8 @@ slide  our god is an awesome god he reigns from heaven above
 
 `heard` is this window's Whisper words. `slide` is that current lyric: dim =
 not heard yet, **green** = heard on this slide, **yellow** = last-3 match that
-can arm Next. Use a terminal that shows ANSI colors.
+can arm Next. Use a terminal that shows ANSI colors. Press **space** or **p**
+to pause detection (no listening, no auto-advance); press again to resume.
 
 ## Locked live config
 

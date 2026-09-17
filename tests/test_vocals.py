@@ -23,7 +23,7 @@ def test_isolate_runs_demucs_then_ffmpeg(tmp_path, monkeypatch):
     def fake_run(cmd, check):
         calls.append(cmd)
         if "-m" in cmd:
-            stem = dest.parent / "_demucs" / "htdemucs" / "mix" / "vocals.wav"
+            stem = dest.parent / "_demucs" / "htdemucs_ft" / "mix" / "vocals.wav"
             stem.parent.mkdir(parents=True)
             stem.write_bytes(b"stem")
             return SimpleNamespace(returncode=0)
@@ -33,7 +33,7 @@ def test_isolate_runs_demucs_then_ffmpeg(tmp_path, monkeypatch):
 
     monkeypatch.setattr(hv.subprocess, "run", fake_run)
     assert hv.isolate(src, dest) is True
-    assert calls[0][:5] == ["uv", "run", "--with", "demucs", "python"]
+    assert "-n" in calls[0] and "htdemucs_ft" in calls[0]
     assert calls[0][-1] == str(src)
     assert calls[1][:3] == ["ffmpeg", "-y", "-i"]
     assert calls[1][-1] == str(dest)

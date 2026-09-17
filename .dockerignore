@@ -19,6 +19,6 @@ tests
 # do not ship local CPU bench leftovers
 verse-cue.auto.toml
 metrics.jsonl
-data/vocals
+# mixes are required; vocals/ is the official-bench stem (listen locally before a RunPod push)
 data/_demucs
 data/**/_demucs

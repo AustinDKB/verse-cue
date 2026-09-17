@@ -15,7 +15,7 @@ def test_load_config_merges_auto_over_model(tmp_path):
 
 def test_load_config_falls_back_to_bundled_default(tmp_path):
     cfg = vc.load_config(tmp_path / "missing.toml", tmp_path / "none.toml")
-    assert cfg["propresenter"]["port"] == 1025
+    assert cfg["propresenter"]["port"] == 50001
     assert cfg["model"]["prompt_mode"] == "none"
     assert cfg["model"]["name"] == "small.en"
     assert cfg["model"]["window_s"] == 4.0

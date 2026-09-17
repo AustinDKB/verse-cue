@@ -22,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 
+from hop_view import LIVE, _enable_vt, show
+
 SR = 16000
 CONFIG = Path("verse-cue.toml")
 AUTO = Path("verse-cue.auto.toml")
@@ -196,8 +198,12 @@ class ProPresenter:
         try:
             current = json.loads(self.get("/status/slide"))["current"] or {"uuid": "", "text": ""}
             self.last = (current["uuid"], current["text"])
+            self._warned = False
         except (OSError, ValueError, KeyError):
-            print(f"verse-cue: ProPresenter unreachable at {self.base}", file=sys.stderr)
+            if not getattr(self, "_warned", False):
+                print(f"verse-cue: ProPresenter unreachable at {self.base}", file=sys.stderr)
+                self._warned = True
+                LIVE["rows"] = 0
         return self.last
 
     def next(self, at: float) -> None:  # noqa: ARG002 - `at` is recorded by the bench fake, ignored live
@@ -274,31 +280,27 @@ def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> flo
     )
 
 
-def paint(words: list[str], matched: set[int], cue: set[int]) -> str:
-    """Dim unmatched, green heard-on-slide, yellow tail matches that can arm Next."""
-    parts = []
-    for i, w in enumerate(words):
-        code = "\033[33m" if i in cue else "\033[32m" if i in matched else "\033[2m"
-        parts.append(f"{code}{w}\033[0m")
-    return " ".join(parts)
+def pending_keys() -> list[str]:
+    """Non-blocking console keypresses. Empty when stdin is not a TTY (tests, pipes, bench)."""
+    if not sys.stdin.isatty():
+        return []
+    try:
+        import msvcrt
+    except ImportError:
+        return []
+    out = []
+    while msvcrt.kbhit():
+        ch = msvcrt.getwch()
+        if ch in "\x00\xe0":
+            msvcrt.getwch()
+            continue
+        out.append(ch)
+    return out
 
 
-def cue_set(n: int, matched: set[int], *, tail: int, first_half: bool) -> set[int]:
-    """Slide indexes that are both matched and far enough along to arm a click."""
-    need = n - tail
-    if first_half:
-        need = max(need, n // 2)
-    return {i for i in matched if i >= need}
-
-
-def show(slide: Slide, d: dict, file=sys.stderr) -> None:
-    """One hop: raw Whisper line, then the current ProPresenter slide with cue colors."""
-    if file is None:
-        return
-    matched = {i for i, _ in slide.pairs}
-    cues = cue_set(len(slide.words), matched, tail=d["tail_words"], first_half=d.get("first_half", True))
-    print(f"heard  {' '.join(slide.raw) or '…'}", file=file)
-    print(f"slide  {paint(slide.words, matched, cues) or '(blank)'}", file=file)
+def toggle_pause(*, pause: bool, keys) -> bool:
+    """Space or p flips detection off/on. At most one toggle per hop."""
+    return (not pause) if any(ch in " pP" for ch in keys()) else pause
 
 
 def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> None:
@@ -310,23 +312,39 @@ def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> None:
     log_metrics(slide, at, cfg)
 
 
+def sync_slide(slide: Slide, pp, t_end: float, cfg: dict) -> Slide:
+    """Start a new Slide whenever ProPresenter's uuid changes."""
+    uuid, text = pp.slide()
+    if uuid == slide.uuid:
+        return slide
+    slide = Slide(uuid, tokens(text), entered=t_end)
+    log_metrics(slide, None, cfg)
+    return slide
+
+
 def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
     """The loop. frames yields (t_end, hop-sized float32 chunk); pp has .slide() and .next(at)."""
     m = cfg["model"]
     ring: deque = deque(maxlen=round(m["window_s"] / m["hop_s"]))
     slide = Slide()
+    pause = False
+    poll = cfg.get("keys", pending_keys)
+    out = cfg.get("display", sys.stderr)
     for t_end, chunk in frames:
+        pause = toggle_pause(pause=pause, keys=poll)
+        if pause:
+            ring.clear()
+            slide = sync_slide(slide, pp, t_end, cfg)
+            show(slide, cfg["decide"], out, paused=True)
+            continue
         ring.append(chunk)
-        uuid, text = pp.slide()
-        if uuid != slide.uuid:
-            slide = Slide(uuid, tokens(text), entered=t_end)
-            log_metrics(slide, None, cfg)
+        slide = sync_slide(slide, pp, t_end, cfg)
         at = (
-            blank_tick(slide, chunk, t_end, cfg["blank"])
+            blank_tick(slide, ring[-1], t_end, cfg["blank"])
             if not slide.words
             else lyric_tick(slide, ring, t_end, model, cfg)
         )
-        show(slide, cfg["decide"], cfg.get("display", sys.stderr))
+        show(slide, cfg["decide"], out)
         if at is not None:
             fire(pp, slide, at, wait, cfg)
 
@@ -362,7 +380,7 @@ def setup(path: Path = CONFIG) -> None:
     """Interactive: pick the vocal input and ProPresenter host/port; print how to connect."""
     device = pick_input()
     host = input("ProPresenter IP [127.0.0.1]: ").strip() or "127.0.0.1"
-    port = int(input("ProPresenter port [1025]: ").strip() or "1025")
+    port = int(input("ProPresenter port [50001]: ").strip() or "50001")
     text = path.read_text()
     text = re.sub(r"(?m)^device = .*$", f'device = "{device}"', text)
     text = re.sub(r"(?m)^host = .*$", f'host = "{host}"', text)
@@ -381,8 +399,8 @@ def main(argv: list[str] | None = None) -> None:
         CONFIG.write_text(DEFAULT_CONFIG.read_text())
     for flag, fn in (
         ("--setup", setup),
-        ("--help", lambda: print("verse-cue [--setup]  auto-advance ProPresenter lyric slides from a vocal feed")),
-        ("-h", lambda: print("verse-cue [--setup]  auto-advance ProPresenter lyric slides from a vocal feed")),
+        ("--help", lambda: print("verse-cue [--setup]  space/p pauses detection")),
+        ("-h", lambda: print("verse-cue [--setup]  space/p pauses detection")),
     ):
         if flag not in args:
             continue
@@ -391,6 +409,8 @@ def main(argv: list[str] | None = None) -> None:
     cfg = load_config()
     cfg["aliases"] = load_aliases()
     pp = ProPresenter(cfg["propresenter"]["host"], cfg["propresenter"]["port"])
+    print("space or p pauses detection", file=sys.stderr)
+    _enable_vt()
     run(mic_frames(cfg["audio"]["device"], cfg["model"]["hop_s"]), pp, load_model(cfg), cfg)
 
 

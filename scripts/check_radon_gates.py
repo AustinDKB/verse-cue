@@ -21,7 +21,7 @@ import operator
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = [ROOT / "verse_cue.py", ROOT / "harvest.py"]
+SOURCES = [ROOT / "verse_cue.py", ROOT / "harvest.py", ROOT / "hop_view.py"]
 TESTS = ROOT / "tests"
 SLOC_PATHS = [*SOURCES, TESTS]
 
