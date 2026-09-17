@@ -47,6 +47,11 @@ Live config is already locked in the bundled `verse-cue.toml`: `small.en`,
 window 4 / hop 1, `prompt=none`, last-3 + first-half + min_matched 4, deadline
 off. `--setup` only writes the mic and the ProPresenter host/port.
 
+While it runs, each hop reprints two lines (ProPresenter only exposes the
+**current** slide). `heard` is this window’s Whisper words. `slide` is that
+current lyric: dim = not heard yet, **green** = heard on this slide, **yellow**
+= last-N match that can arm Next.
+
 Optional: `verse-cue-harvest vocals` writes `data/vocals/` stems (Demucs; mixes stay for alias mining). Then `verse-cue-harvest bench` prefers those stems (needs `ffmpeg` and `yt-dlp` on PATH).
 
 ## Measured
