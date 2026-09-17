@@ -144,6 +144,7 @@ class Slide:
     predicted: float | None = None
     pairs: list[tuple[int, float]] = field(default_factory=list)
     any_match: bool = False
+    raw: list[str] = field(default_factory=list)
 
 
 def transcribe(model, audio: np.ndarray, t_start: float, m: dict, prompt: str) -> tuple[list, float]:
@@ -261,6 +262,7 @@ def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> flo
     audio = np.concatenate(ring)
     start = t_end - len(audio) / SR
     latest, infer = transcribe(model, audio, start, cfg["model"], " ".join(slide.words))
+    slide.raw = [w for _, w in latest]
     d = cfg["decide"]
     heard = merge(slide, latest, start, slide.entered + d["guard_s"])
     heard = canon(heard, set(slide.words), cfg["aliases"], d["fuzzy_cutoff"])
@@ -270,6 +272,33 @@ def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> flo
     return decide(slide, predict(slide.pairs, len(slide.words), d), now, cfg["model"]["hop_s"]) or overdue(
         slide, d, now
     )
+
+
+def paint(words: list[str], matched: set[int], cue: set[int]) -> str:
+    """Dim unmatched, green heard-on-slide, yellow tail matches that can arm Next."""
+    parts = []
+    for i, w in enumerate(words):
+        code = "\033[33m" if i in cue else "\033[32m" if i in matched else "\033[2m"
+        parts.append(f"{code}{w}\033[0m")
+    return " ".join(parts)
+
+
+def cue_set(n: int, matched: set[int], *, tail: int, first_half: bool) -> set[int]:
+    """Slide indexes that are both matched and far enough along to arm a click."""
+    need = n - tail
+    if first_half:
+        need = max(need, n // 2)
+    return {i for i in matched if i >= need}
+
+
+def show(slide: Slide, d: dict, file=sys.stderr) -> None:
+    """One hop: raw Whisper line, then the current ProPresenter slide with cue colors."""
+    if file is None:
+        return
+    matched = {i for i, _ in slide.pairs}
+    cues = cue_set(len(slide.words), matched, tail=d["tail_words"], first_half=d.get("first_half", True))
+    print(f"heard  {' '.join(slide.raw) or '…'}", file=file)
+    print(f"slide  {paint(slide.words, matched, cues) or '(blank)'}", file=file)
 
 
 def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> None:
@@ -297,6 +326,7 @@ def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
             if not slide.words
             else lyric_tick(slide, ring, t_end, model, cfg)
         )
+        show(slide, cfg["decide"], cfg.get("display", sys.stderr))
         if at is not None:
             fire(pp, slide, at, wait, cfg)
 

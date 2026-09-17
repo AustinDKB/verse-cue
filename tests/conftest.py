@@ -73,6 +73,7 @@ def cfg(tmp_path):
     c = vc.load_config(REPO / "verse-cue.toml", tmp_path / "none.toml")
     c["aliases"] = {}
     c["metrics_file"] = str(tmp_path / "metrics.jsonl")
+    c["display"] = None  # hop view is live-only; tests opt in
     return c
 
 
