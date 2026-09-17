@@ -39,9 +39,9 @@ def patch_urlopen(monkeypatch, bodies):
 def test_slide_reads_current_uuid_and_text(monkeypatch):
     body = json.dumps({"current": {"uuid": "A", "text": "Amazing grace", "notes": ""}, "next": None}).encode()
     urls = patch_urlopen(monkeypatch, [body])
-    pp = vc.ProPresenter("127.0.0.1", 1025)
+    pp = vc.ProPresenter("127.0.0.1", 50001)
     assert pp.slide() == ("A", "Amazing grace")
-    assert urls == [("http://127.0.0.1:1025/v1/status/slide", 1)]
+    assert urls == [("http://127.0.0.1:50001/v1/status/slide", 1)]
 
 
 def test_slide_null_current_means_no_slide(monkeypatch):
