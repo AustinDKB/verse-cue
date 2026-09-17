@@ -37,6 +37,48 @@ def test_show_prints_transcript_and_painted_current_slide():
     assert "\033[32mour\033[0m" in text
 
 
+class Tty(io.StringIO):
+    def isatty(self):
+        return True
+
+
+def test_show_redraws_in_place_on_a_tty():
+    slide = vc.Slide("A", ["our", "god"])
+    slide.raw = ["our"]
+    d = {"tail_words": 3, "first_half": True}
+    buf = Tty()
+    vc.LIVE.update(rows=0, uuid=None)
+    vc.show(slide, d, file=buf)
+    slide.raw = ["our", "god"]
+    slide.pairs = [(0, 1.0), (1, 1.4)]
+    vc.show(slide, d, file=buf)
+    text = buf.getvalue()
+    assert "heard  our god" in text
+    assert "\033[2F" in text
+    assert "\033[32mour\033[0m" in text
+    assert "\033[33mgod\033[0m" in text
+    assert text.count("\033[2K") >= 4
+
+
+def test_show_starts_a_new_block_when_the_slide_changes():
+    d = {"tail_words": 3, "first_half": True}
+    buf = Tty()
+    vc.LIVE.update(rows=0, uuid=None)
+    a = vc.Slide("A", ["our", "god"])
+    a.raw = ["our"]
+    vc.show(a, d, file=buf)
+    a.raw = ["our", "god"]
+    vc.show(a, d, file=buf)
+    b = vc.Slide("B", ["he", "reigns"])
+    b.raw = ["reigns"]
+    vc.show(b, d, file=buf)
+    text = buf.getvalue()
+    assert text.count("\033[2F") == 1
+    assert "heard  our god" in text
+    assert "heard  reigns" in text
+    assert "slide  " in text
+
+
 def test_run_writes_display_each_lyric_hop(cfg, tmp_path):
     from tests.conftest import ScriptedModel, ScriptedPP, silent_frames
 
@@ -47,3 +89,12 @@ def test_run_writes_display_each_lyric_hop(cfg, tmp_path):
     vc.run(silent_frames([1, 2, 3, 4, 5]), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
     assert "heard  " in buf.getvalue()
     assert "heaven" in buf.getvalue()
+
+
+def test_show_paused_replaces_the_heard_line():
+    slide = vc.Slide("A", ["our", "god"])
+    buf = io.StringIO()
+    vc.show(slide, {"tail_words": 3, "first_half": True}, file=buf, paused=True)
+    text = buf.getvalue()
+    assert "paused  space to resume" in text
+    assert "slide  " in text
