@@ -10,6 +10,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 MODULES = ["verse_cue.py", "harvest.py"]
+DISPLAY = "hop_view.py"
 FORBIDDEN = re.compile(r"(Factory|Manager)$|^Base[A-Z]")
 MAX_TOTAL_SLOC = 1000
 MAX_DEPTH = 3
@@ -48,7 +49,7 @@ def test_no_ceremony_names(path):
 
 def test_total_production_sloc_under_cap():
     total = 0
-    for path in MODULES:
+    for path in [*MODULES, DISPLAY]:
         lines = (REPO / path).read_text().splitlines()
         total += sum(1 for line in lines if line.strip() and not line.strip().startswith("#"))
     assert total <= MAX_TOTAL_SLOC

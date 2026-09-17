@@ -1,5 +1,6 @@
 """End-to-end loop with scripted model and fake ProPresenter. Times are the capture clock (seconds)."""
 
+import io
 import json
 from pathlib import Path
 
@@ -141,3 +142,57 @@ def test_sleep_until_does_not_sleep_for_the_past(monkeypatch):
     monkeypatch.setattr(vc.time, "sleep", slept.append)
     vc.sleep_until(vc.time.monotonic() - 10)
     assert slept == [0.0]
+
+
+def _keys(*hops):
+    seq = iter(hops)
+    return lambda: next(seq, [])
+
+
+def test_toggle_pause_flips_once_per_hop():
+    assert vc.toggle_pause(pause=False, keys=lambda: [" "]) is True
+    assert vc.toggle_pause(pause=True, keys=lambda: ["p"]) is False
+    assert vc.toggle_pause(pause=False, keys=lambda: ["x"]) is False
+    assert vc.toggle_pause(pause=True, keys=lambda: [" ", "p"]) is False
+
+
+def test_pending_keys_empty_when_stdin_is_not_a_tty(monkeypatch):
+    monkeypatch.setattr(vc.sys.stdin, "isatty", lambda: False)
+    assert vc.pending_keys() == []
+
+
+def test_pause_skips_detection_and_does_not_fire(cfg):
+    tail = words_at([(1.0, "reigns"), (1.4, "from"), (1.8, "heaven"), (2.2, "above")])
+    windows = [[]] * 4 + [tail]
+    pp = ScriptedPP([("A", SLIDE), ("B", "other")])
+    cfg["keys"] = _keys([" "], [], [], [], [], [])
+    vc.run(silent_frames([1, 2, 3, 4, 5, 6]), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
+    assert pp.fires == []
+
+
+def test_resume_detects_again_after_pause(cfg):
+    tail = words_at([(1.0, "reigns"), (1.4, "from"), (1.8, "heaven"), (2.2, "above")])
+    windows = [[]] * 4 + [tail]
+    pp = ScriptedPP([("A", SLIDE), ("B", "other")])
+    cfg["keys"] = _keys([" "], [], [], [], [" "], [], [], [], [])
+    vc.run(silent_frames([1, 2, 3, 4, 5, 6, 7, 8, 9]), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
+    assert len(pp.fires) == 1
+
+
+def test_pause_prints_resume_hint_once_until_the_slide_changes(cfg):
+    buf = io.StringIO()
+    cfg["display"] = buf
+    cfg["keys"] = _keys([" "], [], [], [], [])
+    pp = ScriptedPP([("A", SLIDE), ("B", "other words on the next slide")])
+    import hop_view as hv
+
+    hv.LIVE.update(rows=0, uuid=None, paused=False)
+
+    def frames():
+        for t in [1, 2, 3, 4, 5]:
+            if t == 4:
+                pp.set(1)
+            yield from silent_frames([t])
+
+    vc.run(frames(), pp, ScriptedModel([[]] * 5), cfg, wait=lambda _t: None)
+    assert buf.getvalue().count("paused  space to resume") == 2

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en" data-step="0" data-wave="idle" data-window="off" data-hop="0" data-math="off" data-board="a" data-blockb="off" data-hopview="dim">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How it clicks — verse-cue</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --cream: #f7f1e4;
+      --paper: #fffaf0;
+      --ink: #1c1917;
+      --mute: #78716c;
+      --sage: #3f6212;
+      --sage-soft: #e2eacd;
+      --brass: #a67c00;
+      --brass-soft: #f3e6b3;
+      --terra: #9a3412;
+      --terra-soft: #f5e2d3;
+      --dim: #a8a29e;
+      --plans: #1e2e4a;
+      --shadow: 6px 6px 0 var(--ink);
+      --font-display: "Fraunces", ui-serif, Georgia, serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: var(--font-mono);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #f3e6b355, transparent 50%),
+        radial-gradient(900px 500px at 110% 10%, #e2eacd66, transparent 45%),
+        repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(28,25,23,.045) 28px),
+        repeating-linear-gradient(90deg, transparent, transparent 27px, rgba(28,25,23,.045) 28px),
+        var(--cream);
+    }
+    body::before {
+      content: "";
+      position: fixed; inset: 0; pointer-events: none; opacity: .16;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+    }
+    .desk {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 1rem;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 1.15rem 1.3rem 1rem;
+    }
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: .35rem 1rem;
+      align-items: start;
+    }
+    .kicker {
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      font-size: .7rem;
+      color: var(--terra);
+      font-weight: 700;
+    }
+    h1 {
+      margin: .12rem 0 0;
+      font-family: var(--font-display);
+      font-size: clamp(1.9rem, 4.4vw, 3.1rem);
+      font-weight: 900;
+      letter-spacing: -.04em;
+      line-height: .95;
+      max-width: 20ch;
+    }
+    .bite {
+      display: inline-block;
+      margin-top: .45rem;
+      border: 3px solid var(--ink);
+      background: var(--brass-soft);
+      box-shadow: 4px 4px 0 var(--ink);
+      padding: .28rem .55rem;
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .caption {
+      grid-column: 1;
+      margin: .35rem 0 0;
+      max-width: 42rem;
+      font-size: .9rem;
+      line-height: 1.4;
+    }
+    .step-no {
+      font-family: var(--font-display);
+      font-size: clamp(2.6rem, 5.5vw, 4.2rem);
+      font-weight: 900;
+      line-height: .8;
+      color: var(--terra);
+      -webkit-text-stroke: 2px var(--ink);
+      paint-order: stroke fill;
+      padding-top: .1rem;
+    }
+    .count { display: block; text-align: right; font-size: .72rem; letter-spacing: .08em; color: var(--mute); margin-top: .35rem; }
+
+    .stage {
+      position: relative;
+      background: var(--paper);
+      border: 3px solid var(--ink);
+      box-shadow: var(--shadow);
+      padding: 1.1rem;
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      grid-template-rows: auto 1fr auto;
+      gap: .9rem 1.1rem;
+      overflow: hidden;
+    }
+    .wave, .board, .hop, .math {
+      border: 3px solid var(--ink);
+      background: var(--cream);
+    }
+    .label {
+      font-size: .66rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: .45rem;
+      color: var(--mute);
+    }
+    .wave { grid-column: 1; grid-row: 1; padding: .75rem; }
+    .bars {
+      display: flex; align-items: flex-end; gap: 4px;
+      height: 84px; position: relative; padding: 0 .2rem;
+    }
+    .bar { flex: 1; background: var(--ink); transform-origin: bottom; animation: idle 1.4s ease-in-out infinite; }
+    .bar:nth-child(odd) { animation-duration: 1.1s; }
+    html[data-wave="idle"] .bar { animation: none; opacity: .28; }
+    html[data-wave="blank"] .bar { animation: none; opacity: .12; height: 12% !important; }
+    .window {
+      position: absolute; top: -6px; bottom: -6px; left: 8%; width: 0;
+      z-index: 2; pointer-events: none;
+      border: 3px solid var(--terra); background: #9a341214; box-shadow: 3px 3px 0 var(--ink);
+      opacity: 0;
+    }
+    html[data-window="on"] .window { opacity: 1; width: 52%; animation: window-in .55s cubic-bezier(.2,.8,.2,1) both; }
+    .hops { display: grid; grid-template-columns: repeat(5, 1fr); gap: .35rem; margin-top: .6rem; }
+    .hop-tick {
+      border: 2px solid var(--ink); text-align: center; padding: .22rem 0;
+      font-size: .7rem; background: var(--paper);
+    }
+    html[data-hop="1"] .hop-tick:nth-child(1),
+    html[data-hop="2"] .hop-tick:nth-child(2),
+    html[data-hop="3"] .hop-tick:nth-child(3),
+    html[data-hop="4"] .hop-tick:nth-child(4),
+    html[data-hop="5"] .hop-tick:nth-child(5) {
+      background: var(--terra-soft); box-shadow: 3px 3px 0 var(--ink); animation: stamp .3s both;
+    }
+
+    .board { grid-column: 2; grid-row: 1 / span 2; padding: .9rem 1rem; display: flex; flex-direction: column; }
+    .uuid {
+      align-self: start; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+      border: 2px solid var(--ink); padding: .12rem .4rem; background: var(--paper); margin-bottom: .7rem;
+    }
+    .words {
+      display: flex; flex-wrap: wrap; gap: .4rem .5rem;
+      font-family: var(--font-display);
+      font-size: clamp(1.25rem, 2.2vw, 1.85rem);
+      font-weight: 700; letter-spacing: -.03em; line-height: 1.15;
+    }
+    .w { color: var(--dim); position: relative; transition: color .3s ease; }
+    .w.green { color: var(--sage); }
+    .w.yellow { color: var(--brass); }
+    .w.yellow::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -.08em;
+      height: .16em; background: var(--brass);
+    }
+    .w.ghost { opacity: .28; text-decoration: line-through; }
+    .w.tail { box-shadow: inset 0 -.42em 0 var(--brass-soft); }
+    .w.mid::before {
+      content: "½";
+      position: absolute; left: -.7rem; top: -.55rem;
+      font-size: .55rem; font-family: var(--font-mono); color: var(--terra);
+    }
+    .stamp {
+      display: none; margin-top: auto; align-self: start;
+      font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+      border: 3px solid var(--ink); padding: .38rem .55rem; box-shadow: 4px 4px 0 var(--ink);
+    }
+    .stamp.on { display: inline-block; animation: stamp .3s both; }
+    .stamp.sage { background: var(--sage-soft); }
+    .stamp.brass { background: var(--brass-soft); }
+    .stamp.terra { background: var(--terra-soft); }
+    html[data-board="b"] .board-a { display: none; }
+    html[data-board="b"] .board-b { display: flex; animation: slide-in .45s cubic-bezier(.2,.8,.2,1) both; }
+    html[data-board="blank"] .board-a .words { display: none; }
+    html[data-board="blank"] .blank-slide { display: block; }
+    .board-b { display: none; flex-direction: column; height: 100%; }
+    .blank-slide {
+      display: none; font-family: var(--font-display); font-size: 1.6rem; font-weight: 700;
+      color: var(--dim); border: 3px dashed var(--ink); padding: 1.2rem; text-align: center;
+    }
+
+    .hop { grid-column: 1; grid-row: 2; padding: .75rem .9rem; font-size: .9rem; line-height: 1.65; min-height: 6rem; }
+    .hop .row { white-space: nowrap; overflow: hidden; }
+    .hop .key { color: var(--mute); }
+    html[data-hopview="dim"] .hop { opacity: .4; }
+    .heard-words { display: inline-block; max-width: 40rem; overflow: hidden; vertical-align: bottom; }
+    html[data-hopview="on"] .heard-words { animation: type .7s steps(22, end) both; }
+    .block-b { display: none; margin-top: .65rem; padding-top: .5rem; border-top: 2px dashed var(--ink); }
+    html[data-blockb="on"] .block-b { display: block; animation: slide-in .4s both; }
+    html[data-blockb="on"] .block-a { opacity: .45; }
+
+    .math {
+      grid-column: 1 / -1; grid-row: 3; padding: .7rem .9rem;
+      display: flex; flex-wrap: wrap; gap: .5rem .8rem; align-items: center; min-height: 3.8rem;
+      opacity: .28;
+    }
+    html[data-math="on"] .math, html[data-math="due"] .math { opacity: 1; }
+    .eq { font-size: clamp(.88rem, 1.6vw, 1.08rem); font-weight: 600; }
+    .chip {
+      display: none; border: 2px solid var(--ink); background: var(--paper);
+      padding: .16rem .45rem; font-size: .74rem;
+    }
+    html[data-math="on"] .chip.pred, html[data-math="due"] .chip { display: inline-block; }
+    html[data-math="on"] .chip.pred, html[data-math="due"] .chip.pred { background: var(--brass-soft); }
+    html[data-math="due"] .chip.due { background: var(--terra-soft); }
+    .band {
+      height: 10px; flex: 1 1 11rem; border: 2px solid var(--ink); display: none; position: relative;
+      background: linear-gradient(90deg, transparent 58%, var(--terra-soft) 58% 82%, transparent 82%);
+    }
+    html[data-math="due"] .band { display: block; }
+    .pin {
+      position: absolute; left: 72%; top: -12px; width: 10px; height: 26px;
+      background: var(--terra); border: 2px solid var(--ink); transform: translateX(-50%);
+    }
+
+    footer {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: .6rem 1rem;
+      align-items: center;
+    }
+    .chapters { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .ch {
+      font-family: inherit; font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; border: 2px solid var(--ink); background: var(--paper);
+      padding: .35rem .5rem; cursor: pointer;
+    }
+    .ch[aria-current="true"] { background: var(--terra-soft); box-shadow: 3px 3px 0 var(--ink); }
+    .hint { font-size: .68rem; color: var(--mute); justify-self: end; }
+    .nav { display: flex; gap: .45rem; }
+    button.nav-btn {
+      font-family: inherit; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      font-size: .76rem; border: 3px solid var(--ink); background: var(--paper);
+      box-shadow: 4px 4px 0 var(--ink); padding: .58rem .9rem; cursor: pointer;
+    }
+    button.nav-btn:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--ink); }
+    button.nav-btn:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--ink); }
+    button.nav-btn:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 var(--ink); }
+    button.next { background: var(--terra-soft); }
+
+    @keyframes idle { 0%,100% { transform: scaleY(.45); } 50% { transform: scaleY(1); } }
+    @keyframes window-in { from { width: 0; opacity: 0; } to { width: 52%; opacity: 1; } }
+    @keyframes stamp { from { transform: scale(1.1) rotate(-2deg); } to { transform: none; } }
+    @keyframes type { from { max-width: 0; } to { max-width: 42rem; } }
+    @keyframes slide-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
+    @media (max-width: 860px) {
+      .stage { grid-template-columns: 1fr; }
+      .wave, .board, .hop, .math { grid-column: 1; grid-row: auto; }
+      .board { min-height: 11rem; }
+      .step-no { display: none; }
+      footer { grid-template-columns: 1fr; }
+      .hint { justify-self: start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="desk">
+    <header>
+      <div>
+        <div class="kicker" id="kicker">Listen · 1 of 6</div>
+        <h1 id="title">The job</h1>
+        <div class="bite" id="bite">reads · listens · clicks Next</div>
+        <p class="caption" id="caption">It watches the ProPresenter slide and the vocal, then hits Next as you reach the last word.</p>
+      </div>
+      <div>
+        <div class="step-no" id="num" aria-hidden="true">1</div>
+        <span class="count" id="count">1 / 20</span>
+      </div>
+    </header>
+
+    <section class="stage" aria-live="polite">
+      <div class="wave">
+        <div class="label">Vocal feed · 4 s window / 1 s hop</div>
+        <div class="bars" id="bars"><div class="window" aria-hidden="true"></div></div>
+        <div class="hops">
+          <div class="hop-tick">t=1</div>
+          <div class="hop-tick">t=2</div>
+          <div class="hop-tick">t=3</div>
+          <div class="hop-tick">t=4</div>
+          <div class="hop-tick">t=5</div>
+        </div>
+      </div>
+
+      <div class="board board-a">
+        <div class="uuid" id="uuid-a">ProPresenter · uuid A</div>
+        <div class="words" id="words-a"></div>
+        <div class="blank-slide">(blank)</div>
+        <div class="stamp" id="stamp"></div>
+      </div>
+      <div class="board board-b">
+        <div class="uuid">ProPresenter · uuid B</div>
+        <div class="words" id="words-b"></div>
+        <div class="stamp terra on">new block · start over</div>
+      </div>
+
+      <div class="hop">
+        <div class="label">Hop view</div>
+        <div class="block-a">
+          <div class="row"><span class="key">heard&nbsp;&nbsp;</span><span class="heard-words" id="heard">…</span></div>
+          <div class="row"><span class="key">slide&nbsp;&nbsp;</span><span id="heard-slide"></span></div>
+        </div>
+        <div class="block-b">
+          <div class="row"><span class="key">heard&nbsp;&nbsp;</span>…</div>
+          <div class="row"><span class="key">slide&nbsp;&nbsp;</span>he reigns from heaven above</div>
+        </div>
+      </div>
+
+      <div class="math">
+        <div class="label" style="margin:0">Arm time · slide.predicted</div>
+        <div class="eq" id="eq">t_last + remaining × rate − lead_s</div>
+        <span class="chip pred">predicted 4.3 s</span>
+        <span class="chip due">now + hop 1 s</span>
+        <div class="band" aria-hidden="true"><span class="pin"></span></div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="chapters" id="chapters"></div>
+      <p class="hint">← → or space</p>
+      <div class="nav">
+        <button class="nav-btn" id="back" type="button">Back</button>
+        <button class="nav-btn next" id="next" type="button">Next</button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const A = ["our","god","is","an","awesome","god","he","reigns","from","heaven","above"];
+    const B = ["he","reigns","from","heaven","above"];
+    const G5 = { green: [0,1,2,3,4] };
+    const G8 = { green: [0,1,2,3,4,5,6,7] };
+    const ARMED = { green: [0,1,2,3,4,5,6,7], yellow: [8,9,10] };
+    const TAIL = { green: [0,1,2,3,4,5,6,7], yellow: [8,9,10], tail: [8,9,10] };
+    const MID = { green: [0,1,2,3,4,5,6,7], yellow: [8,9,10], mid: [5] };
+    const GUARD = { ghost: [0,1] };
+
+    const CH = {
+      listen: "Listen",
+      match: "Match",
+      arm: "Arm",
+      fire: "Fire",
+      aside: "Aside",
+    };
+
+    const STEPS = [
+      { ch: "listen", title: "The job", bite: "reads · listens · clicks Next",
+        caption: "It watches the slide on screen and the vocal, then hits Next as you reach the last word.",
+        wave: "idle", window: "off", hop: "0", hopview: "dim", math: "off", board: "a",
+        heard: "…", eq: "no timer yet", stamp: "", paint: {} },
+      { ch: "listen", title: "Two inputs", bite: "mic + this slide",
+        caption: "Vocal feed on the left. ProPresenter uuid + text on the right. Nothing else is the source of truth.",
+        wave: "live", window: "off", hop: "0", hopview: "dim", math: "off", board: "a",
+        heard: "…", eq: "no timer yet", stamp: "uuid A · 11 words", stampKind: "sage", paint: {} },
+      { ch: "listen", title: "A hop is 1 second", bite: "the clock, not a stream",
+        caption: "Every hop it grabs a chunk. Whisper, align, and “should I click?” all run on that tick.",
+        wave: "live", window: "off", hop: "1", hopview: "dim", math: "off", board: "a",
+        heard: "…", eq: "no timer yet", stamp: "", paint: {} },
+      { ch: "listen", title: "The window is 4 seconds", bite: "what Whisper actually sees",
+        caption: "The box is the last 4 seconds of audio. Hop 1s, window 4s. Shorter hop = snappier, hungrier GPU.",
+        wave: "live", window: "on", hop: "2", hopview: "dim", math: "off", board: "a",
+        heard: "…", eq: "no timer yet", stamp: "window 4s / hop 1s", stampKind: "terra", paint: {} },
+      { ch: "listen", title: "Hear", bite: "guesses, not a click",
+        caption: "This window becomes words on the heard line. Still just audio guesses.",
+        wave: "live", window: "on", hop: "2", hopview: "on", math: "off", board: "a",
+        heard: "our god is an awesome", eq: "no timer yet", stamp: "", paint: {} },
+      { ch: "listen", title: "Ignore the bleed", bite: "guard 0.3 s",
+        caption: "Words in the first 0.3s of a new slide are leftover from the last line. Drop them.",
+        wave: "live", window: "on", hop: "2", hopview: "on", math: "off", board: "a",
+        heard: "our god is an awesome", eq: "guard_s = 0.3", stamp: "bleed ≠ this slide", stampKind: "sage", paint: GUARD },
+
+      { ch: "match", title: "Align", bite: "heard → slide indexes",
+        caption: "Map those guesses onto the words printed on the slide, in order.",
+        wave: "live", window: "on", hop: "3", hopview: "on", math: "off", board: "a",
+        heard: "our god is an awesome", eq: "still tracking", stamp: "", paint: G5 },
+      { ch: "match", title: "Green means matched", bite: "dim = not yet",
+        caption: "Hop view: dim not heard, green heard on this slide. Tracking only.",
+        wave: "live", window: "on", hop: "3", hopview: "on", math: "off", board: "a",
+        heard: "our god is an awesome", eq: "still tracking", stamp: "green = heard", stampKind: "sage", paint: G5 },
+      { ch: "match", title: "Green is not Next", bite: "opening cannot arm",
+        caption: "“Our God is an awesome…” can light up all day. An operator would not click yet.",
+        wave: "live", window: "on", hop: "3", hopview: "on", math: "off", board: "a",
+        heard: "our god is an awesome", eq: "predict() → None", stamp: "opening greens cannot arm", stampKind: "sage", paint: G5 },
+      { ch: "match", title: "Need four matches", bite: "min_matched = 4",
+        caption: "Fewer than 4 aligned words (or half a short slide) never fires. Three mumbled words do not click.",
+        wave: "live", window: "on", hop: "3", hopview: "on", math: "off", board: "a",
+        heard: "our god is an awesome", eq: "4 matches, still too early", stamp: "min_matched 4 · not enough", stampKind: "sage", paint: G5 },
+
+      { ch: "arm", title: "Last three words", bite: "tail_words = 3",
+        caption: "The latest match must sit in the last 3 words. Here that starts at from.",
+        wave: "live", window: "on", hop: "4", hopview: "on", math: "off", board: "a",
+        heard: "reigns from heaven above", eq: "need index ≥ 8", stamp: "tail · from heaven above", stampKind: "brass", paint: TAIL },
+      { ch: "arm", title: "And past halfway", bite: "first_half = true",
+        caption: "Also past the midpoint. 11 words → index ≥ 8. Same cutoff as the tail on this slide.",
+        wave: "live", window: "on", hop: "4", hopview: "on", math: "off", board: "a",
+        heard: "reigns from heaven above", eq: "max(tail, midpoint) = 8", stamp: "halfway is after god #2", stampKind: "brass", paint: MID },
+      { ch: "arm", title: "Yellow is armed", bite: "timer is now allowed",
+        caption: "Yellow = matched and in the arm zone. That is from / heaven / above. Green chorus glue cannot do this.",
+        wave: "live", window: "on", hop: "5", hopview: "on", math: "off", board: "a",
+        heard: "reigns from heaven above", eq: "armed · waiting on the clock", stamp: "yellow can set predicted", stampKind: "brass", paint: ARMED },
+
+      { ch: "fire", title: "Singing rate", bite: "sec / word from the matches",
+        caption: "Span between first and last matched timestamps, clamped to 0.15–1.5s. Here: 0.4 s/word.",
+        wave: "live", window: "on", hop: "5", hopview: "on", math: "on", board: "a",
+        heard: "reigns from heaven above", eq: "rate = 0.4 s/word (clamped)", stamp: "not Whisper’s word count", stampKind: "brass", paint: ARMED },
+      { ch: "fire", title: "The clock", bite: "this is predicted — not a knob",
+        caption: "Last-match time + words still left × rate − 0.3s lead. There is no separate arm_time.",
+        wave: "live", window: "on", hop: "5", hopview: "on", math: "on", board: "a",
+        heard: "reigns from heaven above", eq: "4.2 + 1 × 0.4 − 0.3 = 4.3", stamp: "lead_s = 0.3", stampKind: "brass", paint: ARMED },
+      { ch: "fire", title: "Later yellow wins", bite: "new tail match replaces the timer",
+        caption: "A closer yellow match overwrites predicted. Old opening greens never get a vote.",
+        wave: "live", window: "on", hop: "5", hopview: "on", math: "on", board: "a",
+        heard: "heaven above", eq: "above @ 4.6 → new predicted", stamp: "replace, don’t average", stampKind: "brass", paint: ARMED },
+      { ch: "fire", title: "This hop?", bite: "due if predicted ≤ now + 1s",
+        caption: "Still more than one hop away → wait. Inside this hop or already past → fire at max(predicted, now).",
+        wave: "live", window: "on", hop: "5", hopview: "on", math: "due", board: "a",
+        heard: "reigns from heaven above", eq: "4.3 ≤ now + 1s → fire this hop", stamp: "due this hop", stampKind: "terra", paint: ARMED },
+      { ch: "fire", title: "Lead gets eaten", bite: "hop + Whisper ≈ 1.5–2.5s late",
+        caption: "now includes inference time. Live lyric→lyric often lands after the last word. Don’t fix that with global lead.",
+        wave: "live", window: "on", hop: "5", hopview: "on", math: "due", board: "a",
+        heard: "reigns from heaven above", eq: "0.3s lead < hop 1s + infer", stamp: "early beats late · still late", stampKind: "terra", paint: ARMED },
+      { ch: "fire", title: "Next", bite: "/v1/trigger/next",
+        caption: "ProPresenter advances. New uuid. Old yellow words do not come with you.",
+        wave: "live", window: "off", hop: "0", hopview: "on", math: "on", board: "b", blockb: "on",
+        heard: "…", eq: "uuid changed · predicted cleared", stamp: "", paint: ARMED },
+
+      { ch: "aside", title: "Blanks skip all of this", bite: "VAD, not the lyric timer",
+        caption: "Empty slides wait for voice after a 1s settle. No yellow, no rate, no lead. Pads can fake a click — that’s a different bug.",
+        wave: "blank", window: "off", hop: "0", hopview: "on", math: "off", board: "blank",
+        heard: "…", eq: "blank_settle_s = 1.0 · min_speech 300 ms", stamp: "no lyric clock on blanks", stampKind: "terra", paint: {} },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const html = document.documentElement;
+    const wordsA = $("words-a");
+    const heardSlide = $("heard-slide");
+    A.forEach((w, i) => {
+      const s = document.createElement("span");
+      s.className = "w"; s.dataset.i = i; s.textContent = w;
+      wordsA.appendChild(s);
+    });
+    B.forEach((w) => {
+      const s = document.createElement("span");
+      s.className = "w"; s.textContent = w;
+      $("words-b").appendChild(s);
+    });
+    heardSlide.innerHTML = A.map((w, i) => `<span class="w" data-i="${i}">${w}</span>`).join(" ");
+    heardSlide.dataset.lyric = "a";
+
+    const bars = $("bars");
+    [38,72,44,90,55,80,36,95,60,48,88,40,70,52,92,34,78,46,84,58,66,42].forEach((h, i) => {
+      const b = document.createElement("div");
+      b.className = "bar";
+      b.style.height = h + "%";
+      b.style.animationDelay = (i % 7) * 0.09 + "s";
+      bars.appendChild(b);
+    });
+
+    const order = [...new Set(STEPS.map((s) => s.ch))];
+    const chapters = $("chapters");
+    order.forEach((id) => {
+      const b = document.createElement("button");
+      b.className = "ch";
+      b.type = "button";
+      b.textContent = CH[id];
+      b.addEventListener("click", () => go(STEPS.findIndex((s) => s.ch === id)));
+      chapters.appendChild(b);
+    });
+
+    let step = 0;
+
+    function paint(el, spec = {}) {
+      el.querySelectorAll(".w").forEach((n) => {
+        n.classList.remove("green", "yellow", "ghost", "tail", "mid");
+        const i = Number(n.dataset.i);
+        if (spec.ghost?.includes(i)) n.classList.add("ghost");
+        if (spec.tail?.includes(i)) n.classList.add("tail");
+        if (spec.mid?.includes(i)) n.classList.add("mid");
+        if (spec.yellow?.includes(i)) n.classList.add("yellow");
+        else if (spec.green?.includes(i)) n.classList.add("green");
+      });
+    }
+
+    function go(n) {
+      step = Math.max(0, Math.min(STEPS.length - 1, n));
+      const s = STEPS[step];
+      const inCh = STEPS.filter((x) => x.ch === s.ch);
+      const iCh = inCh.indexOf(s) + 1;
+      html.dataset.wave = s.wave;
+      html.dataset.window = s.window;
+      html.dataset.hop = s.hop;
+      html.dataset.math = s.math;
+      html.dataset.board = s.board;
+      html.dataset.blockb = s.blockb || "off";
+      html.dataset.hopview = s.hopview;
+      html.dataset.step = String(step);
+      $("title").textContent = s.title;
+      $("kicker").textContent = `${CH[s.ch]} · ${iCh} of ${inCh.length}`;
+      $("bite").textContent = s.bite;
+      $("caption").textContent = s.caption;
+      $("num").textContent = String(step + 1);
+      $("count").textContent = `${step + 1} / ${STEPS.length}`;
+      $("heard").textContent = s.heard;
+      $("eq").textContent = s.eq;
+      if (s.board === "blank") {
+        $("uuid-a").textContent = "ProPresenter · empty text";
+        heardSlide.innerHTML = '<span class="w">(blank)</span>';
+        heardSlide.dataset.lyric = "";
+      } else {
+        $("uuid-a").textContent = "ProPresenter · uuid A";
+        if (heardSlide.dataset.lyric !== "a") {
+          heardSlide.innerHTML = A.map((w, i) => `<span class="w" data-i="${i}">${w}</span>`).join(" ");
+          heardSlide.dataset.lyric = "a";
+        }
+        paint(heardSlide, s.paint);
+      }
+      paint(wordsA, s.paint);
+      const stamp = $("stamp");
+      stamp.textContent = s.stamp;
+      stamp.className = "stamp" + (s.stamp ? ` on ${s.stampKind || "sage"}` : "");
+      $("back").disabled = step === 0;
+      $("next").disabled = false;
+      $("next").textContent = step === STEPS.length - 1 ? "Again" : "Next";
+      [...chapters.children].forEach((b, i) => b.setAttribute("aria-current", order[i] === s.ch ? "true" : "false"));
+    }
+
+    $("back").addEventListener("click", () => go(step - 1));
+    $("next").addEventListener("click", () => go(step === STEPS.length - 1 ? 0 : step + 1));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); go(step === STEPS.length - 1 ? 0 : step + 1); }
+      if (e.key === "ArrowLeft" || e.key === "Backspace") { e.preventDefault(); go(step - 1); }
+    });
+    go(0);
+  </script>
+</body>
+</html>

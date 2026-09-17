@@ -46,7 +46,7 @@ def test_setup_keeps_default_port_on_empty_answer(workdir, monkeypatch):
     text = (workdir / "verse-cue.toml").read_text()
     assert 'device = "Webcam Mic"' in text
     assert 'host = "127.0.0.1"' in text
-    assert "port = 1025" in text
+    assert "port = 50001" in text
 
 
 def test_main_creates_config_from_bundled_default_then_runs_setup(tmp_path, monkeypatch):
@@ -65,7 +65,7 @@ def test_main_wires_run(workdir, monkeypatch):
     monkeypatch.setattr(vc, "run", lambda frames, pp, model, cfg, wait=None: seen.update(pp=pp, model=model, cfg=cfg))
     vc.main([])
     assert seen["model"] == "MODEL"
-    assert seen["pp"].base == "http://127.0.0.1:1025/v1"
+    assert seen["pp"].base == "http://127.0.0.1:50001/v1"
     assert seen["cfg"]["aliases"] == vc.load_aliases(vc.DEFAULT_ALIASES)
 
 
