@@ -1,5 +1,7 @@
 # Live notes — 2026-09-16
 
+Later Sunday: [2026-09-20 rehearsal + service-sim telemetry](live-notes-2026-09-20.md), [session log](live-session-2026-09-20.jsonl), [HoH caption ideation](caption-ideation.md).
+
 Operator session on the locked live pick (`small.en`, window 4s, hop 1s, `lead_s` 0.3, `min_speech_ms` 300, `blank_settle_s` 1.0). Notes only unless a later prompt asks for code. Source: `metrics.jsonl` plus feel from the set.
 
 ## Songs so far
