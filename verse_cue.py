@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import tomllib
+import unicodedata
 import urllib.request
 from collections import deque
 from dataclasses import dataclass, field
@@ -30,6 +31,7 @@ METRICS = Path("metrics.jsonl")
 DEFAULT_CONFIG = Path(__file__).with_name("verse-cue.toml")
 DEFAULT_ALIASES = Path(__file__).with_name("aliases.json")
 WORD_RE = re.compile(r"[^a-z']+")
+QUOTES = str.maketrans("\u2018\u2019\u02bc", "'''")  # curly apostrophes -> plain '
 
 
 def load_config(path: Path = CONFIG, auto: Path = AUTO) -> dict:
@@ -68,8 +70,9 @@ def load_model(cfg: dict):
 
 
 def tokens(text: str) -> list[str]:
-    """Slide text -> lowercase words of letters and apostrophes; empties dropped."""
-    return [w for w in WORD_RE.sub(" ", text.lower()).split() if w.strip("'")]
+    """Slide text -> lowercase words of letters and apostrophes; empties dropped. Same folding as transcribe()."""
+    folded = unicodedata.normalize("NFKD", text.translate(QUOTES)).encode("ascii", "ignore").decode().lower()
+    return [w for w in WORD_RE.sub(" ", folded).split() if w.strip("'")]
 
 
 def lan_ip() -> str:
@@ -101,10 +104,10 @@ def load_aliases(path: Path = ALIASES) -> dict[str, str]:
 
 
 def canon(heard: list[tuple[float, str]], vocab: set[str], aliases: dict[str, str], cutoff: float) -> list:
-    """Map heard words onto the slide vocabulary: alias table first, then difflib, else unchanged."""
+    """Map heard words onto the slide vocabulary: slide words stay, then alias table, then difflib, else unchanged."""
     out = []
     for t, heard_word in heard:
-        w = aliases.get(heard_word, heard_word)
+        w = heard_word if heard_word in vocab else aliases.get(heard_word, heard_word)
         if w not in vocab:
             w = (get_close_matches(w, vocab, n=1, cutoff=cutoff) or [w])[0]
         out.append((t, w))
@@ -134,7 +137,7 @@ def predict(pairs: list[tuple[int, float]], n_words: int, d: dict) -> float | No
 
 @dataclass
 class Slide:
-    """Everything we know about the slide currently on screen. Reset whenever the uuid changes."""
+    """Everything we know about the slide currently on screen. Reset whenever the uuid changes or we fire."""
 
     uuid: str = ""
     words: list[str] = field(default_factory=list)
@@ -161,7 +164,12 @@ def transcribe(model, audio: np.ndarray, t_start: float, m: dict, prompt: str) -
         vad_filter=False,
         **kw,
     )
-    words = [(t_start + w.start, WORD_RE.sub("", w.word.lower())) for s in segments for w in s.words or []]
+    # NFKD splits accents off as marks that WORD_RE then deletes, so this folds like tokens().
+    words = [
+        (t_start + w.start, WORD_RE.sub("", unicodedata.normalize("NFKD", w.word.translate(QUOTES).lower())))
+        for s in segments
+        for w in s.words or []
+    ]
     return words, time.monotonic() - t0
 
 
@@ -185,20 +193,19 @@ class ProPresenter:
 
     def __init__(self, host: str, port: int) -> None:
         self.base = f"http://{host}:{port}/v1"
-        self.last: tuple[str, str] = ("", "")
 
     def get(self, path: str) -> bytes:
         with urllib.request.urlopen(self.base + path, timeout=1) as response:
             return response.read()
 
-    def slide(self) -> tuple[str, str]:
-        """(uuid, text). ('', '') when nothing is showing; last known value when unreachable."""
+    def slide(self) -> tuple[str, str] | None:
+        """(uuid, text). ('', '') when nothing is showing; None when unreachable, so a stale value never fires."""
         try:
             current = json.loads(self.get("/status/slide"))["current"] or {"uuid": "", "text": ""}
-            self.last = (current["uuid"], current["text"])
+            return current["uuid"], current["text"]
         except (OSError, ValueError, KeyError):
             print(f"verse-cue: ProPresenter unreachable at {self.base}", file=sys.stderr)
-        return self.last
+            return None
 
     def next(self, at: float) -> None:  # noqa: ARG002 - `at` is recorded by the bench fake, ignored live
         try:
@@ -301,26 +308,42 @@ def show(slide: Slide, d: dict, file=sys.stderr) -> None:
     print(f"slide  {paint(slide.words, matched, cues) or '(blank)'}", file=file)
 
 
-def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> None:
-    """Advance, unless the slide changed while we were transcribing."""
-    if pp.slide()[0] != slide.uuid:
-        return
+def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> Slide:
+    """Advance unless the slide changed (or cannot be read) by the time we would press Next.
+
+    After a press, start the slide fresh from the fire time: the next slide may share this uuid
+    or the status may lag, and neither may fire again on the evidence that just fired.
+    """
     wait(at)
+    if (pp.slide() or (None,))[0] != slide.uuid:
+        return slide
     pp.next(at)
     log_metrics(slide, at, cfg)
+    return Slide(slide.uuid, slide.words, entered=at)
+
+
+def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
+    """This tick's slide: fresh when the uuid changed, None when the status read failed (stale, never fire)."""
+    read = pp.slide()
+    if read is None:
+        return None
+    if read[0] != slide.uuid:
+        slide = Slide(read[0], tokens(read[1]), entered=t_end)
+        log_metrics(slide, None, cfg)
+    return slide
 
 
 def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
-    """The loop. frames yields (t_end, hop-sized float32 chunk); pp has .slide() and .next(at)."""
+    """The loop. frames yields (t_end, hop-sized float32 chunk); pp has .slide() (None = unreadable) and .next(at)."""
     m = cfg["model"]
     ring: deque = deque(maxlen=round(m["window_s"] / m["hop_s"]))
     slide = Slide()
     for t_end, chunk in frames:
         ring.append(chunk)
-        uuid, text = pp.slide()
-        if uuid != slide.uuid:
-            slide = Slide(uuid, tokens(text), entered=t_end)
-            log_metrics(slide, None, cfg)
+        current = track(pp, slide, t_end, cfg)
+        if current is None:  # skip this tick; the cue keeps its prediction and retries next hop
+            continue
+        slide = current
         at = (
             blank_tick(slide, chunk, t_end, cfg["blank"])
             if not slide.words
@@ -328,7 +351,7 @@ def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
         )
         show(slide, cfg["decide"], cfg.get("display", sys.stderr))
         if at is not None:
-            fire(pp, slide, at, wait, cfg)
+            slide = fire(pp, slide, at, wait, cfg)
 
 
 def mic_frames(device: str, hop_s: float):  # pragma: no cover - needs audio hardware

@@ -49,13 +49,14 @@ def test_slide_null_current_means_no_slide(monkeypatch):
     assert vc.ProPresenter("h", 1).slide() == ("", "")
 
 
-def test_slide_unreachable_keeps_last_known_and_warns(monkeypatch, capsys):
+def test_slide_unreachable_is_none_and_warns(monkeypatch, capsys):
     ok = json.dumps({"current": {"uuid": "A", "text": "x", "notes": ""}}).encode()
-    patch_urlopen(monkeypatch, [ok, OSError("down"), b"not json"])
+    patch_urlopen(monkeypatch, [ok, OSError("down"), b"not json", b"{}"])
     pp = vc.ProPresenter("h", 1)
     assert pp.slide() == ("A", "x")
-    assert pp.slide() == ("A", "x")
-    assert pp.slide() == ("A", "x")
+    assert pp.slide() is None  # never the last known value: a stale uuid must not arm Next
+    assert pp.slide() is None
+    assert pp.slide() is None
     assert "unreachable" in capsys.readouterr().err
 
 
