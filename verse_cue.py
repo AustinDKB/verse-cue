@@ -321,8 +321,7 @@ def fire(pp, slide: Slide, cue: tuple[float, float], wait, cfg: dict) -> Slide:
         return slide
     at = max(at, gap_end)
     wait(at)
-    read = pp.slide()
-    if read is None or read[0] != slide.uuid or tokens(read[1]) != slide.words:
+    if not shows(pp.slide(), slide):
         return slide
     pp.next(at)
     log_metrics(slide, at, cfg)
@@ -330,17 +329,27 @@ def fire(pp, slide: Slide, cue: tuple[float, float], wait, cfg: dict) -> Slide:
     return Slide(slide.uuid, slide.words, entered=at + lag, pressed=at, changed=at)
 
 
+def shows(read: tuple[str, str] | None, slide: Slide) -> bool:
+    """True when a status read is this slide: same uuid and same text."""
+    return read is not None and read[0] == slide.uuid and tokens(read[1]) == slide.words
+
+
+def entered_at(slide: Slide, t_end: float, hop_s: float) -> float:
+    """When the newly read slide began: our press if the status is still lagging behind it, else now."""
+    ours = slide.pressed is not None and t_end - slide.pressed <= 3 * hop_s
+    return slide.pressed if ours else t_end
+
+
 def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
     """This tick's slide: fresh when the uuid or text changed, None when the status read failed (stale, never fire)."""
     read = pp.slide()
     if read is None:
         return None
-    words = tokens(read[1])
-    if slide.changed is None or read[0] != slide.uuid or words != slide.words:
-        ours = slide.pressed is not None and t_end - slide.pressed <= 3 * cfg["model"]["hop_s"]  # our lagging press
-        entered = slide.pressed if ours else t_end
+    if slide.changed is None or not shows(read, slide):
+        entered = entered_at(slide, t_end, cfg["model"]["hop_s"])
         # the first slide seen at startup is not a change
-        slide = Slide(read[0], words, entered=entered, changed=-math.inf if slide.changed is None else entered)
+        changed = -math.inf if slide.changed is None else entered
+        slide = Slide(read[0], tokens(read[1]), entered=entered, changed=changed)
         log_metrics(slide, None, cfg)
     return slide
 
