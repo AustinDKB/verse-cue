@@ -441,3 +441,25 @@ def test_operator_moving_to_same_uuid_new_text_during_gap_wait_cancels_the_press
     vc.run(silent_frames([1, 2, 3, 4, 5, 6, 7]), pp, ScriptedModel(windows), cfg, wait=wait)
     assert pp.fires == [pytest.approx(5.0, abs=0.05)]
     assert pp.i == 2
+
+
+def test_gap_within_a_hop_of_now_after_inference_is_waited_not_held(cfg, monkeypatch):
+    # inference takes 0.8 s: on the t=6 tick now is 6.8; the operator's change at t=5 with a 2.5 s gap ends at 7.5,
+    # within one hop of now, so fire() waits and presses at 7.5 instead of holding until the t=7 tick (7.8)
+    cfg["decide"]["min_gap_s"] = 2.5
+    real = vc.transcribe
+    monkeypatch.setattr(vc, "transcribe", lambda *a: (real(*a)[0], 0.8))
+    a_tail = words_at([(3.4, "reigns"), (3.5, "from"), (3.6, "heaven"), (3.7, "above")])  # window t=6
+    windows = [[]] * 5 + [a_tail]
+    pp = ScriptedPP([("Z", "intro"), *GAP_SLIDES])
+    frames, waits, wait = ticked_waits(range(1, 8))
+
+    def operator(frames):
+        for t, chunk in frames:
+            if t == 5:
+                pp.set(1)
+            yield t, chunk
+
+    vc.run(operator(frames), pp, ScriptedModel(windows), cfg, wait=wait)
+    assert pp.fires == [pytest.approx(7.5, abs=0.05)]
+    assert all(at <= tick + 0.8 + cfg["model"]["hop_s"] for tick, at in waits)
