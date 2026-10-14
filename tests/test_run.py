@@ -159,29 +159,59 @@ def test_same_uuid_slides_fire_once_per_sung_pass(cfg):
     assert pp.fires == [pytest.approx(5.0, abs=0.05)]
 
 
+class LaggingPP(ScriptedPP):
+    """/status/slide keeps reporting the old slide for two reads after a trigger."""
+
+    def __init__(self, slides):
+        super().__init__(slides)
+        self.lag = 0
+
+    def slide(self):
+        if self.lag:
+            self.lag -= 1
+            self.reads += 1
+            return self.slides[self.i - 1]
+        return super().slide()
+
+    def next(self, at):
+        super().next(at)
+        self.lag = 2
+
+
 def test_lagging_status_after_trigger_does_not_fire_again(cfg):
-    class LaggingPP(ScriptedPP):
-        """/status/slide keeps reporting the old slide for two reads after a trigger."""
-
-        def __init__(self, slides):
-            super().__init__(slides)
-            self.lag = 0
-
-        def slide(self):
-            if self.lag:
-                self.lag -= 1
-                self.reads += 1
-                return self.slides[self.i - 1]
-            return super().slide()
-
-        def next(self, at):
-            super().next(at)
-            self.lag = 2
-
     windows = [[]] * 4 + heard_again([5, 6, 7, 8])
     pp = LaggingPP([("A", SLIDE), ("B", "something completely different here")])
     run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
     assert len(pp.fires) == 1
+
+
+def test_same_uuid_slides_with_different_text_fire_once_each(cfg):
+    # each same-uuid slide aligns against its own words, not the words of the slide that just fired
+    second = "we will sing your praise forever and ever amen"
+    third = "holy holy holy lord god almighty early in the morning"
+    a_tail = words_at([(1.0, "reigns"), (1.4, "from"), (1.8, "heaven"), (2.2, "above")])  # window t=5, start 1
+    b_tail = words_at([(2.5, "forever"), (2.9, "and"), (3.3, "ever"), (3.7, "amen")])  # window t=8, start 4
+    c_tail = words_at([(2.5, "early"), (2.9, "in"), (3.3, "the"), (3.7, "morning")])  # window t=11, start 7
+    windows = [[]] * 4 + [a_tail, [], [], b_tail, [], [], c_tail, [], []]
+    pp = ScriptedPP([("A", SLIDE), ("A", second), ("A", third), ("B", "x")])
+    run_with(windows, pp, cfg, list(range(1, 14)))
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(8.0, abs=0.05), pytest.approx(11.0, abs=0.05)]
+
+
+def test_lagging_status_after_blank_fire_does_not_fire_again(cfg, monkeypatch):
+    # the congregation sings the next slide while the status still reports the blank one
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: True)
+    pp = LaggingPP([("BL", ""), ("A", SLIDE)])
+    run_with([[]] * 10, pp, cfg, [1, 2, 3, 4, 5, 6])
+    assert pp.fires == [2]
+
+
+def test_consecutive_same_uuid_blank_slides_both_advance(cfg, monkeypatch):
+    # after the fire at t=2 the second blank waits max(1.0, 2 * 1.0) + 1.0 = 3s, then fires on voice
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: True)
+    pp = ScriptedPP([("BL", ""), ("BL", ""), ("A", SLIDE)])
+    run_with([[]] * 10, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert pp.fires == [2, 5]
 
 
 class FailingPP(ScriptedPP):

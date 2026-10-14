@@ -32,6 +32,8 @@ DEFAULT_CONFIG = Path(__file__).with_name("verse-cue.toml")
 DEFAULT_ALIASES = Path(__file__).with_name("aliases.json")
 WORD_RE = re.compile(r"[^a-z']+")
 QUOTES = str.maketrans("\u2018\u2019\u02bc", "'''")  # curly apostrophes -> plain '
+# One folding for slide and heard text: plain apostrophes, accents stripped, ASCII lowercase.
+fold = lambda text: unicodedata.normalize("NFKD", text.translate(QUOTES)).encode("ascii", "ignore").decode().lower()  # noqa: E731
 
 
 def load_config(path: Path = CONFIG, auto: Path = AUTO) -> dict:
@@ -70,9 +72,8 @@ def load_model(cfg: dict):
 
 
 def tokens(text: str) -> list[str]:
-    """Slide text -> lowercase words of letters and apostrophes; empties dropped. Same folding as transcribe()."""
-    folded = unicodedata.normalize("NFKD", text.translate(QUOTES)).encode("ascii", "ignore").decode().lower()
-    return [w for w in WORD_RE.sub(" ", folded).split() if w.strip("'")]
+    """Slide text -> lowercase words of letters and apostrophes; empties dropped. Same fold() as transcribe()."""
+    return [w for w in WORD_RE.sub(" ", fold(text)).split() if w.strip("'")]
 
 
 def lan_ip() -> str:
@@ -164,12 +165,7 @@ def transcribe(model, audio: np.ndarray, t_start: float, m: dict, prompt: str) -
         vad_filter=False,
         **kw,
     )
-    # NFKD splits accents off as marks that WORD_RE then deletes, so this folds like tokens().
-    words = [
-        (t_start + w.start, WORD_RE.sub("", unicodedata.normalize("NFKD", w.word.translate(QUOTES).lower())))
-        for s in segments
-        for w in s.words or []
-    ]
+    words = [(t_start + w.start, WORD_RE.sub("", fold(w.word))) for s in segments for w in s.words or []]
     return words, time.monotonic() - t0
 
 
@@ -312,23 +308,26 @@ def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> Slide:
     """Advance unless the slide changed (or cannot be read) by the time we would press Next.
 
     After a press, start the slide fresh from the fire time: the next slide may share this uuid
-    or the status may lag, and neither may fire again on the evidence that just fired.
+    or the status may lag, and neither may fire again on the evidence that just fired. A blank
+    slide has no evidence to reset, so its settle starts only after the status lag has passed.
     """
     wait(at)
     if (pp.slide() or (None,))[0] != slide.uuid:
         return slide
     pp.next(at)
     log_metrics(slide, at, cfg)
-    return Slide(slide.uuid, slide.words, entered=at)
+    lag = 0 if slide.words else max(cfg["blank"]["blank_settle_s"], 2 * cfg["model"]["hop_s"])
+    return Slide(slide.uuid, slide.words, entered=at + lag)
 
 
 def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
-    """This tick's slide: fresh when the uuid changed, None when the status read failed (stale, never fire)."""
+    """This tick's slide: fresh when the uuid or text changed, None when the status read failed (stale, never fire)."""
     read = pp.slide()
     if read is None:
         return None
-    if read[0] != slide.uuid:
-        slide = Slide(read[0], tokens(read[1]), entered=t_end)
+    words = tokens(read[1])
+    if read[0] != slide.uuid or words != slide.words:
+        slide = Slide(read[0], words, entered=t_end)
         log_metrics(slide, None, cfg)
     return slide
 
