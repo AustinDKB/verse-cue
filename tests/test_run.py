@@ -257,3 +257,32 @@ def test_operator_next_during_fire_wait_does_not_double_advance(cfg):
     vc.run(silent_frames([1, 2, 3, 4, 5]), pp, ScriptedModel(windows), cfg, wait=lambda _t: pp.set(1))
     assert pp.fires == []
     assert pp.i == 1
+
+
+B_SUNG = [(5.5, "something"), (5.9, "completely"), (6.3, "different"), (6.7, "here")]  # sung right after the t=5 Next
+
+
+def test_line_sung_while_status_lags_still_fires_the_next_slide(cfg):
+    # slide B's whole line is sung while /status/slide still reports A; B dates from the Next, not the first fresh read
+    b = [words_at([(c - (t - 4.0), w) for c, w in B_SUNG]) for t in (7, 8)]
+    windows = [[]] * 4 + [heard_again([5])[0], [], *b]
+    pp = LaggingPP([("A", SLIDE), ("B", "something completely different here"), ("C", "x")])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(8.0, abs=0.05)]
+
+
+def test_line_sung_while_status_reads_fail_still_fires_the_next_slide(cfg):
+    # read 6 is the check before the t=5 Next; the t=6 and t=7 reads time out while B is sung
+    windows = [[]] * 4 + [heard_again([5])[0], words_at([(c - 4.0, w) for c, w in B_SUNG])]
+    pp = FailingPP([("A", SLIDE), ("B", "something completely different here"), ("C", "x")], fail={7, 8})
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(8.0, abs=0.05)]
+
+
+def test_line_sung_while_status_lags_after_blank_fire_still_fires(cfg, monkeypatch):
+    # blank fires at t=2; A's tail is sung at 2.5-3.7 while the status still reports the blank
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: True)
+    a_tail = words_at([(1.5, "reigns"), (1.9, "from"), (2.3, "heaven"), (2.7, "above")])  # window t=5, start 1
+    pp = LaggingPP([("BL", ""), ("A", SLIDE), ("B", "x")])
+    run_with([a_tail], pp, cfg, [1, 2, 3, 4, 5])
+    assert pp.fires == [2, pytest.approx(5.0, abs=0.05)]

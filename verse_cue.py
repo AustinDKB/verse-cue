@@ -149,6 +149,7 @@ class Slide:
     pairs: list[tuple[int, float]] = field(default_factory=list)
     any_match: bool = False
     raw: list[str] = field(default_factory=list)
+    pressed: float | None = None  # our Next on this slide; the next slide dates from it, not from a lagging read
 
 
 def transcribe(model, audio: np.ndarray, t_start: float, m: dict, prompt: str) -> tuple[list, float]:
@@ -317,7 +318,7 @@ def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> Slide:
     pp.next(at)
     log_metrics(slide, at, cfg)
     lag = 0 if slide.words else max(cfg["blank"]["blank_settle_s"], 2 * cfg["model"]["hop_s"])
-    return Slide(slide.uuid, slide.words, entered=at + lag)
+    return Slide(slide.uuid, slide.words, entered=at + lag, pressed=at)
 
 
 def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
@@ -327,7 +328,7 @@ def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
         return None
     words = tokens(read[1])
     if read[0] != slide.uuid or words != slide.words:
-        slide = Slide(read[0], words, entered=t_end)
+        slide = Slide(read[0], words, entered=t_end if slide.pressed is None else slide.pressed)
         log_metrics(slide, None, cfg)
     return slide
 
