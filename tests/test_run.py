@@ -141,3 +141,148 @@ def test_sleep_until_does_not_sleep_for_the_past(monkeypatch):
     monkeypatch.setattr(vc.time, "sleep", slept.append)
     vc.sleep_until(vc.time.monotonic() - 10)
     assert slept == [0.0]
+
+
+TAIL = [(2.0, "reigns"), (2.4, "from"), (2.8, "heaven"), (3.2, "above")]  # capture times of one sung pass
+
+
+def heard_again(t_ends, window_s=4.0):
+    """Whisper re-hears the same tail in every overlapping window: same capture times, shifted offsets."""
+    return [words_at([(c - (t - window_s), w) for c, w in TAIL if c >= t - window_s]) for t in t_ends]
+
+
+def test_same_uuid_slides_fire_once_per_sung_pass(cfg):
+    # ProPresenter can show consecutive slides under one uuid; one pass of the tail is one Next, not one per hop.
+    windows = [[]] * 4 + heard_again([5, 6, 7, 8])
+    pp = ScriptedPP([("A", SLIDE)] * 3 + [("B", "x")])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert pp.fires == [pytest.approx(5.0, abs=0.05)]
+
+
+class LaggingPP(ScriptedPP):
+    """/status/slide keeps reporting the old slide for two reads after a trigger."""
+
+    def __init__(self, slides):
+        super().__init__(slides)
+        self.lag = 0
+
+    def slide(self):
+        if self.lag:
+            self.lag -= 1
+            self.reads += 1
+            return self.slides[self.i - 1]
+        return super().slide()
+
+    def next(self, at):
+        super().next(at)
+        self.lag = 2
+
+
+def test_lagging_status_after_trigger_does_not_fire_again(cfg):
+    windows = [[]] * 4 + heard_again([5, 6, 7, 8])
+    pp = LaggingPP([("A", SLIDE), ("B", "something completely different here")])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert len(pp.fires) == 1
+
+
+def test_same_uuid_slides_with_different_text_fire_once_each(cfg):
+    # each same-uuid slide aligns against its own words, not the words of the slide that just fired
+    second = "we will sing your praise forever and ever amen"
+    third = "holy holy holy lord god almighty early in the morning"
+    a_tail = words_at([(1.0, "reigns"), (1.4, "from"), (1.8, "heaven"), (2.2, "above")])  # window t=5, start 1
+    b_tail = words_at([(2.5, "forever"), (2.9, "and"), (3.3, "ever"), (3.7, "amen")])  # window t=8, start 4
+    c_tail = words_at([(2.5, "early"), (2.9, "in"), (3.3, "the"), (3.7, "morning")])  # window t=11, start 7
+    windows = [[]] * 4 + [a_tail, [], [], b_tail, [], [], c_tail, [], []]
+    pp = ScriptedPP([("A", SLIDE), ("A", second), ("A", third), ("B", "x")])
+    run_with(windows, pp, cfg, list(range(1, 14)))
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(8.0, abs=0.05), pytest.approx(11.0, abs=0.05)]
+
+
+def test_lagging_status_after_blank_fire_does_not_fire_again(cfg, monkeypatch):
+    # the congregation sings the next slide while the status still reports the blank one
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: True)
+    pp = LaggingPP([("BL", ""), ("A", SLIDE)])
+    run_with([[]] * 10, pp, cfg, [1, 2, 3, 4, 5, 6])
+    assert pp.fires == [2]
+
+
+def test_consecutive_same_uuid_blank_slides_both_advance(cfg, monkeypatch):
+    # after the fire at t=2 the second blank waits max(1.0, 2 * 1.0) + 1.0 = 3s, then fires on voice
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: True)
+    pp = ScriptedPP([("BL", ""), ("BL", ""), ("A", SLIDE)])
+    run_with([[]] * 10, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert pp.fires == [2, 5]
+
+
+class FailingPP(ScriptedPP):
+    """/status/slide times out on the reads listed in `fail` (1-based read count), like ProPresenter.slide()."""
+
+    def __init__(self, slides, fail):
+        super().__init__(slides)
+        self.fail = set(fail)
+
+    def slide(self):
+        read = super().slide()
+        return None if self.reads in self.fail else read
+
+
+def test_failed_reads_after_trigger_do_not_fire_on_stale_slide(cfg):
+    # read 5 is the pre-Next check; reads 6 and 7 time out right after the trigger
+    windows = [[]] * 4 + heard_again([5, 6, 7, 8])
+    pp = FailingPP([("A", SLIDE), ("B", "something completely different here")], fail={6, 7})
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert len(pp.fires) == 1
+
+
+def test_failed_read_skips_the_tick_and_the_cue_retries_next_hop(cfg):
+    # tick t=5 would fire, but its status read (read 5) fails: skip it, fire on the t=6 hop instead of never
+    windows = [[]] * 4 + heard_again([6, 7])
+    pp = FailingPP([("A", SLIDE), ("B", "x")], fail={5})
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7])
+    assert pp.fires == [pytest.approx(6.0, abs=0.05)]
+
+
+def test_failed_read_before_next_holds_the_press_and_retries(cfg):
+    # read 6 is the check right before Next at t=5: unreadable, so no press; the t=6 hop fires
+    windows = [[]] * 4 + heard_again([5, 6, 7])
+    pp = FailingPP([("A", SLIDE), ("B", "x")], fail={6})
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7])
+    assert pp.fires == [pytest.approx(6.0, abs=0.05)]
+
+
+def test_operator_next_during_fire_wait_does_not_double_advance(cfg):
+    windows = [[]] * 4 + heard_again([5])
+    pp = ScriptedPP([("A", SLIDE), ("B", "other"), ("C", "third")])
+    # the operator presses Next while fire() sleeps toward the fire time
+    vc.run(silent_frames([1, 2, 3, 4, 5]), pp, ScriptedModel(windows), cfg, wait=lambda _t: pp.set(1))
+    assert pp.fires == []
+    assert pp.i == 1
+
+
+B_SUNG = [(5.5, "something"), (5.9, "completely"), (6.3, "different"), (6.7, "here")]  # sung right after the t=5 Next
+
+
+def test_line_sung_while_status_lags_still_fires_the_next_slide(cfg):
+    # slide B's whole line is sung while /status/slide still reports A; B dates from the Next, not the first fresh read
+    b = [words_at([(c - (t - 4.0), w) for c, w in B_SUNG]) for t in (7, 8)]
+    windows = [[]] * 4 + [heard_again([5])[0], [], *b]
+    pp = LaggingPP([("A", SLIDE), ("B", "something completely different here"), ("C", "x")])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(8.0, abs=0.05)]
+
+
+def test_line_sung_while_status_reads_fail_still_fires_the_next_slide(cfg):
+    # read 6 is the check before the t=5 Next; the t=6 and t=7 reads time out while B is sung
+    windows = [[]] * 4 + [heard_again([5])[0], words_at([(c - 4.0, w) for c, w in B_SUNG])]
+    pp = FailingPP([("A", SLIDE), ("B", "something completely different here"), ("C", "x")], fail={7, 8})
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7, 8])
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(8.0, abs=0.05)]
+
+
+def test_line_sung_while_status_lags_after_blank_fire_still_fires(cfg, monkeypatch):
+    # blank fires at t=2; A's tail is sung at 2.5-3.7 while the status still reports the blank
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: True)
+    a_tail = words_at([(1.5, "reigns"), (1.9, "from"), (2.3, "heaven"), (2.7, "above")])  # window t=5, start 1
+    pp = LaggingPP([("BL", ""), ("A", SLIDE), ("B", "x")])
+    run_with([a_tail], pp, cfg, [1, 2, 3, 4, 5])
+    assert pp.fires == [2, pytest.approx(5.0, abs=0.05)]
