@@ -330,7 +330,8 @@ def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
         return None
     words = tokens(read[1])
     if slide.changed is None or read[0] != slide.uuid or words != slide.words:
-        entered = t_end if slide.pressed is None else slide.pressed
+        ours = slide.pressed is not None and t_end - slide.pressed <= 3 * cfg["model"]["hop_s"]  # our lagging press
+        entered = slide.pressed if ours else t_end
         # the first slide seen at startup is not a change
         slide = Slide(read[0], words, entered=entered, changed=-math.inf if slide.changed is None else entered)
         log_metrics(slide, None, cfg)

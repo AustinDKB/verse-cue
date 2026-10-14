@@ -363,3 +363,19 @@ def test_config_without_min_gap_still_holds_two_seconds(cfg):
     pp = ScriptedPP(GAP_SLIDES)
     run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6])
     assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(7.0, abs=0.05)]
+
+
+def test_operator_change_long_after_our_press_on_a_repeated_slide_starts_the_gap(cfg):
+    # A fires at t=5 onto the same A again; the operator moves to B at t=10; B's tail at t=11 waits until t=12
+    b_tail = words_at([(3.4, "something"), (3.5, "completely"), (3.6, "different"), (3.7, "here")])  # window t=11
+    windows = [[]] * 4 + [heard_again([5])[0]] + [[]] * 5 + [b_tail]
+    pp = ScriptedPP([("A", SLIDE), *GAP_SLIDES])
+
+    def operator(frames):
+        for t, chunk in frames:
+            if t == 10:
+                pp.set(2)
+            yield t, chunk
+
+    vc.run(operator(silent_frames(range(1, 12))), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(12.0, abs=0.05)]
