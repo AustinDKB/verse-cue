@@ -292,11 +292,11 @@ GAP_SLIDES = [("A", SLIDE), ("B", "something completely different here"), ("C", 
 
 
 def test_fire_inside_the_gap_waits_then_fires(cfg):
-    # A fires at t=5; B's tail predicts t=6, inside the 2 s gap: wait until t=7 and press, never drop
+    # A fires at t=5; B's tail predicts t=6, inside the 2 s gap: hold the cue and press at t=7, never drop
     b_tail = words_at([(3.4, "something"), (3.5, "completely"), (3.6, "different"), (3.7, "here")])  # window t=6
     windows = [[]] * 4 + [heard_again([5])[0], b_tail]
     pp = ScriptedPP(GAP_SLIDES)
-    _, waits = run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6])
+    _, waits = run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7])
     assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(7.0, abs=0.05)]
     assert waits[-1] == pytest.approx(7.0, abs=0.05)
 
@@ -335,7 +335,7 @@ def test_operator_press_during_gap_wait_cancels_the_press(cfg):
         if t > 6.5:  # the delayed wait for B: the operator presses Next meanwhile
             pp.set(2)
 
-    vc.run(silent_frames([1, 2, 3, 4, 5, 6]), pp, ScriptedModel(windows), cfg, wait=wait)
+    vc.run(silent_frames([1, 2, 3, 4, 5, 6, 7]), pp, ScriptedModel(windows), cfg, wait=wait)
     assert pp.fires == [pytest.approx(5.0, abs=0.05)]
     assert pp.i == 2
 
@@ -361,7 +361,7 @@ def test_config_without_min_gap_still_holds_two_seconds(cfg):
     b_tail = words_at([(3.4, "something"), (3.5, "completely"), (3.6, "different"), (3.7, "here")])  # window t=6
     windows = [[]] * 4 + [heard_again([5])[0], b_tail]
     pp = ScriptedPP(GAP_SLIDES)
-    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6])
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6, 7])
     assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(7.0, abs=0.05)]
 
 
@@ -379,3 +379,47 @@ def test_operator_change_long_after_our_press_on_a_repeated_slide_starts_the_gap
 
     vc.run(operator(silent_frames(range(1, 12))), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
     assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(12.0, abs=0.05)]
+
+
+def ticked_waits(t_ends):
+    """Frames plus a wait that records (tick, wait time), to show how far past its tick the loop sleeps."""
+    tick = []
+    waits: list[tuple[float, float]] = []
+
+    def frames():
+        for t, chunk in silent_frames(t_ends):
+            tick[:] = [t]
+            yield t, chunk
+
+    return frames(), waits, lambda at: waits.append((tick[0], at))
+
+
+def test_gap_longer_than_a_hop_holds_the_cue_without_sleeping_past_a_hop(cfg):
+    # A fires at t=5; B's tail at t=6 lands inside a 3 s gap (ends t=8): hold on the t=6 tick, press at 8 from t=7
+    cfg["decide"]["min_gap_s"] = 3.0
+    b_tail = words_at([(3.4, "something"), (3.5, "completely"), (3.6, "different"), (3.7, "here")])  # window t=6
+    windows = [[]] * 4 + [heard_again([5])[0], b_tail]  # t=7 hears nothing: the held cue still fires
+    pp = ScriptedPP(GAP_SLIDES)
+    frames, waits, wait = ticked_waits(range(1, 9))
+    vc.run(frames, pp, ScriptedModel(windows), cfg, wait=wait)
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(8.0, abs=0.05)]
+    assert all(at <= tick + cfg["model"]["hop_s"] for tick, at in waits)
+
+
+def test_blank_cue_held_for_the_gap_fires_without_more_voice(cfg, monkeypatch):
+    # the operator moves to a blank at t=5; voice once at t=6 (settled), 3 s gap ends t=8: hold, then press at 8
+    cfg["decide"]["min_gap_s"] = 3.0
+    voice = iter([True])
+    monkeypatch.setattr(vc, "speech_in", lambda chunk, blank: next(voice, False))
+    pp = ScriptedPP([("Z", "intro"), ("BL", ""), ("A", SLIDE)])
+    frames, waits, wait = ticked_waits(range(1, 10))
+
+    def operator(frames):
+        for t, chunk in frames:
+            if t == 5:
+                pp.set(1)
+            yield t, chunk
+
+    vc.run(operator(frames), pp, ScriptedModel([]), cfg, wait=wait)
+    assert pp.fires == [8]
+    assert all(at <= tick + cfg["model"]["hop_s"] for tick, at in waits)

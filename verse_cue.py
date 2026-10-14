@@ -236,11 +236,11 @@ def log_metrics(slide: Slide, at: float | None, cfg: dict) -> None:
 
 
 def blank_tick(slide: Slide, chunk: np.ndarray, t_end: float, blank: dict) -> float | None:
-    """Blank slide: advance on the first voice after the settle period. No slide at all: never."""
+    """Blank slide: advance on the first voice after the settle period, or on a cue held for the gap. No slide: never."""
     if not slide.uuid:
         return None
     settled = t_end - slide.entered >= blank["blank_settle_s"]
-    return t_end if settled and speech_in(chunk, blank) else None
+    return t_end if slide.predicted is not None or (settled and speech_in(chunk, blank)) else None
 
 
 def decide(slide: Slide, predicted: float | None, now: float, hop_s: float) -> float | None:
@@ -306,14 +306,20 @@ def show(slide: Slide, d: dict, file=sys.stderr) -> None:
     print(f"slide  {paint(slide.words, matched, cues) or '(blank)'}", file=file)
 
 
-def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> Slide:
+def fire(pp, slide: Slide, at: float, now: float, wait, cfg: dict) -> Slide:
     """Advance unless the slide changed (or cannot be read) by the time we would press Next.
 
+    A fire within min_gap_s of the last change waits for the gap to end; when that is more than
+    one hop away, the cue is held on the slide and the loop retries it on a later tick.
     After a press, start the slide fresh from the fire time: the next slide may share this uuid
     or the status may lag, and neither may fire again on the evidence that just fired. A blank
     slide has no evidence to reset, so its settle starts only after the status lag has passed.
     """
-    at = max(at, slide.changed + cfg["decide"].get("min_gap_s", 2.0))  # too soon after a change: wait, never drop
+    gap_end = slide.changed + cfg["decide"].get("min_gap_s", 2.0)
+    if gap_end > now + cfg["model"]["hop_s"]:
+        slide.predicted = at
+        return slide
+    at = max(at, gap_end)
     wait(at)
     if (pp.slide() or (None,))[0] != slide.uuid:
         return slide
@@ -356,7 +362,7 @@ def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
         )
         show(slide, cfg["decide"], cfg.get("display", sys.stderr))
         if at is not None:
-            slide = fire(pp, slide, at, wait, cfg)
+            slide = fire(pp, slide, at, t_end, wait, cfg)
 
 
 def mic_frames(device: str, hop_s: float):  # pragma: no cover - needs audio hardware
