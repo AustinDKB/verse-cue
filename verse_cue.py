@@ -150,7 +150,7 @@ class Slide:
     any_match: bool = False
     raw: list[str] = field(default_factory=list)
     pressed: float | None = None  # our Next on this slide; the next slide dates from it, not from a lagging read
-    changed: float = -math.inf  # last slide change (ours or the operator's); min_gap_s counts from it
+    changed: float | None = -math.inf  # last slide change (ours or the operator's); min_gap_s counts from it
 
 
 def transcribe(model, audio: np.ndarray, t_start: float, m: dict, prompt: str) -> tuple[list, float]:
@@ -313,7 +313,7 @@ def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> Slide:
     or the status may lag, and neither may fire again on the evidence that just fired. A blank
     slide has no evidence to reset, so its settle starts only after the status lag has passed.
     """
-    at = max(at, slide.changed + cfg["decide"]["min_gap_s"])  # too soon after a change: wait, never drop
+    at = max(at, slide.changed + cfg["decide"].get("min_gap_s", 2.0))  # too soon after a change: wait, never drop
     wait(at)
     if (pp.slide() or (None,))[0] != slide.uuid:
         return slide
@@ -329,10 +329,10 @@ def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
     if read is None:
         return None
     words = tokens(read[1])
-    if read[0] != slide.uuid or words != slide.words:
+    if slide.changed is None or read[0] != slide.uuid or words != slide.words:
         entered = t_end if slide.pressed is None else slide.pressed
-        # the first slide seen at startup is not a change; the initial Slide() has never been entered
-        slide = Slide(read[0], words, entered=entered, changed=entered if slide.entered else -math.inf)
+        # the first slide seen at startup is not a change
+        slide = Slide(read[0], words, entered=entered, changed=-math.inf if slide.changed is None else entered)
         log_metrics(slide, None, cfg)
     return slide
 
@@ -341,7 +341,7 @@ def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
     """The loop. frames yields (t_end, hop-sized float32 chunk); pp has .slide() (None = unreadable) and .next(at)."""
     m = cfg["model"]
     ring: deque = deque(maxlen=round(m["window_s"] / m["hop_s"]))
-    slide = Slide()
+    slide = Slide(changed=None)  # nothing read yet: the first read is always a new slide
     for t_end, chunk in frames:
         ring.append(chunk)
         current = track(pp, slide, t_end, cfg)

@@ -338,3 +338,28 @@ def test_operator_press_during_gap_wait_cancels_the_press(cfg):
     vc.run(silent_frames([1, 2, 3, 4, 5, 6]), pp, ScriptedModel(windows), cfg, wait=wait)
     assert pp.fires == [pytest.approx(5.0, abs=0.05)]
     assert pp.i == 2
+
+
+def test_operator_change_after_blank_startup_waits_for_the_gap(cfg):
+    # nothing on screen at startup; the operator moves to A at t=5; A's tail at t=6 waits until t=7
+    a_tail = words_at([(3.4, "reigns"), (3.5, "from"), (3.6, "heaven"), (3.7, "above")])  # window t=6
+    windows = [[], a_tail]  # a blank screen never runs the model: windows start at t=5
+    pp = ScriptedPP([("", ""), *GAP_SLIDES])
+
+    def operator(frames):
+        for t, chunk in frames:
+            if t == 5:
+                pp.set(1)
+            yield t, chunk
+
+    vc.run(operator(silent_frames([1, 2, 3, 4, 5, 6])), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
+    assert pp.fires == [pytest.approx(7.0, abs=0.05)]
+
+
+def test_config_without_min_gap_still_holds_two_seconds(cfg):
+    del cfg["decide"]["min_gap_s"]
+    b_tail = words_at([(3.4, "something"), (3.5, "completely"), (3.6, "different"), (3.7, "here")])  # window t=6
+    windows = [[]] * 4 + [heard_again([5])[0], b_tail]
+    pp = ScriptedPP(GAP_SLIDES)
+    run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6])
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(7.0, abs=0.05)]
