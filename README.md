@@ -20,8 +20,9 @@ flowchart LR
 
 Early beats late. Fire time is the last *heard* tail word, plus remaining
 words × clamped singing rate, minus `lead_s`. A later, closer match overwrites
-that timer. Blank (instrumental) slides advance on the first voice. A manual
-slide change (new uuid) starts over.
+that timer. Blank (instrumental) slides advance on the first voice. A slide
+change (new uuid or new text) or our own Next starts over, so one sung pass
+fires once; a failed status read skips the hop instead of firing on stale state.
 
 ## Copy-paste install
 
