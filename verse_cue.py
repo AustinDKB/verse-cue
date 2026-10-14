@@ -321,17 +321,13 @@ def fire(pp, slide: Slide, cue: tuple[float, float], wait, cfg: dict) -> Slide:
         return slide
     at = max(at, gap_end)
     wait(at)
-    if not shows(pp.slide(), slide):
+    read = pp.slide()
+    if read is None or (read[0], tokens(read[1])) != (slide.uuid, slide.words):
         return slide
     pp.next(at)
     log_metrics(slide, at, cfg)
     lag = 0 if slide.words else max(cfg["blank"]["blank_settle_s"], 2 * cfg["model"]["hop_s"])
     return Slide(slide.uuid, slide.words, entered=at + lag, pressed=at, changed=at)
-
-
-def shows(read: tuple[str, str] | None, slide: Slide) -> bool:
-    """True when a status read is this slide: same uuid and same text."""
-    return read is not None and read[0] == slide.uuid and tokens(read[1]) == slide.words
 
 
 def entered_at(slide: Slide, t_end: float, hop_s: float) -> float:
@@ -345,11 +341,12 @@ def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
     read = pp.slide()
     if read is None:
         return None
-    if slide.changed is None or not shows(read, slide):
+    words = tokens(read[1])
+    if slide.changed is None or (read[0], words) != (slide.uuid, slide.words):
         entered = entered_at(slide, t_end, cfg["model"]["hop_s"])
         # the first slide seen at startup is not a change
         changed = -math.inf if slide.changed is None else entered
-        slide = Slide(read[0], tokens(read[1]), entered=entered, changed=changed)
+        slide = Slide(read[0], words, entered=entered, changed=changed)
         log_metrics(slide, None, cfg)
     return slide
 
