@@ -1,7 +1,7 @@
 # anti-slop-toolkit
 
 Agent skills, Cursor/Pi harness config, and quality-gate tooling for keeping
-AI-assisted code lean — ponytail discipline, metrics-against-slop, parallel
+AI-assisted code lean — metrics-against-slop, parallel
 pytest hooks, and product-gate personas.
 
 This repo is **not** an application. Copy (or submodule) the pieces you want
@@ -13,7 +13,7 @@ does not ship history ledgers**.
 
 | Path | What |
 |------|------|
-| `.cursor/` | Ponytail + assert-sweep skills, parallel-pytest / ponytail / commit-on-main rules, force-parallel-pytest + protect-pyproject hooks |
+| `.cursor/` | parallel-pytest / commit-on-main rules, force-parallel-pytest + protect-pyproject hooks |
 | `.agents/skills/` | PR Lens |
 | `.pi/` | Product-gate skill + persona agents (union/fizzy/kanban stripped), project-safety extension |
 | `scripts/` | `metrics_against_slop`, `slop_gate`, radon/halstead/commit metric recorders + checks |
