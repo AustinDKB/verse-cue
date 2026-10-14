@@ -19,6 +19,7 @@ prompt_mode = "none"   # none | slide | hotwords  (bias the decoder with the sli
 
 [decide]
 lead_s = 0.3           # fire this many seconds before the predicted start of the last word
+min_gap_s = 2.0        # never change slides sooner than this after the last change (ours or the operator's); a fire waits
 guard_s = 0.3          # ignore words heard within this many seconds of entering a slide (bleed)
 default_sec_per_word = 0.45
 rate_bounds = [0.15, 1.5]  # clamp for the measured seconds-per-word

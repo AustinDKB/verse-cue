@@ -286,3 +286,55 @@ def test_line_sung_while_status_lags_after_blank_fire_still_fires(cfg, monkeypat
     pp = LaggingPP([("BL", ""), ("A", SLIDE), ("B", "x")])
     run_with([a_tail], pp, cfg, [1, 2, 3, 4, 5])
     assert pp.fires == [2, pytest.approx(5.0, abs=0.05)]
+
+
+GAP_SLIDES = [("A", SLIDE), ("B", "something completely different here"), ("C", "x")]
+
+
+def test_fire_inside_the_gap_waits_then_fires(cfg):
+    # A fires at t=5; B's tail predicts t=6, inside the 2 s gap: wait until t=7 and press, never drop
+    b_tail = words_at([(3.4, "something"), (3.5, "completely"), (3.6, "different"), (3.7, "here")])  # window t=6
+    windows = [[]] * 4 + [heard_again([5])[0], b_tail]
+    pp = ScriptedPP(GAP_SLIDES)
+    _, waits = run_with(windows, pp, cfg, [1, 2, 3, 4, 5, 6])
+    assert pp.fires == [pytest.approx(5.0, abs=0.05), pytest.approx(7.0, abs=0.05)]
+    assert waits[-1] == pytest.approx(7.0, abs=0.05)
+
+
+def test_fire_just_after_operator_change_waits_for_the_gap(cfg):
+    # the operator moves to A at t=5 (first seen then); A's tail at t=6 waits until t=7
+    a_tail = words_at([(3.4, "reigns"), (3.5, "from"), (3.6, "heaven"), (3.7, "above")])  # window t=6
+    windows = [[]] * 5 + [a_tail]
+    pp = ScriptedPP([("Z", "intro"), *GAP_SLIDES])
+    frames = silent_frames([1, 2, 3, 4, 5, 6])
+
+    def operator(frames):
+        for t, chunk in frames:
+            if t == 5:
+                pp.set(1)
+            yield t, chunk
+
+    vc.run(operator(frames), pp, ScriptedModel(windows), cfg, wait=lambda _t: None)
+    assert pp.fires == [pytest.approx(7.0, abs=0.05)]
+
+
+def test_fire_outside_the_gap_is_unchanged(cfg):
+    windows = [[]] * 4 + heard_again([5])
+    pp = ScriptedPP(GAP_SLIDES)
+    _, waits = run_with(windows, pp, cfg, [1, 2, 3, 4, 5])
+    assert pp.fires == [pytest.approx(5.0, abs=0.05)]
+    assert waits == [pytest.approx(5.0, abs=0.05)]
+
+
+def test_operator_press_during_gap_wait_cancels_the_press(cfg):
+    b_tail = words_at([(3.4, "something"), (3.5, "completely"), (3.6, "different"), (3.7, "here")])
+    windows = [[]] * 4 + [heard_again([5])[0], b_tail]
+    pp = ScriptedPP(GAP_SLIDES)
+
+    def wait(t):
+        if t > 6.5:  # the delayed wait for B: the operator presses Next meanwhile
+            pp.set(2)
+
+    vc.run(silent_frames([1, 2, 3, 4, 5, 6]), pp, ScriptedModel(windows), cfg, wait=wait)
+    assert pp.fires == [pytest.approx(5.0, abs=0.05)]
+    assert pp.i == 2

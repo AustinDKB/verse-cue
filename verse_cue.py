@@ -150,6 +150,7 @@ class Slide:
     any_match: bool = False
     raw: list[str] = field(default_factory=list)
     pressed: float | None = None  # our Next on this slide; the next slide dates from it, not from a lagging read
+    changed: float = -math.inf  # last slide change (ours or the operator's); min_gap_s counts from it
 
 
 def transcribe(model, audio: np.ndarray, t_start: float, m: dict, prompt: str) -> tuple[list, float]:
@@ -312,13 +313,14 @@ def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> Slide:
     or the status may lag, and neither may fire again on the evidence that just fired. A blank
     slide has no evidence to reset, so its settle starts only after the status lag has passed.
     """
+    at = max(at, slide.changed + cfg["decide"]["min_gap_s"])  # too soon after a change: wait, never drop
     wait(at)
     if (pp.slide() or (None,))[0] != slide.uuid:
         return slide
     pp.next(at)
     log_metrics(slide, at, cfg)
     lag = 0 if slide.words else max(cfg["blank"]["blank_settle_s"], 2 * cfg["model"]["hop_s"])
-    return Slide(slide.uuid, slide.words, entered=at + lag, pressed=at)
+    return Slide(slide.uuid, slide.words, entered=at + lag, pressed=at, changed=at)
 
 
 def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
@@ -328,7 +330,9 @@ def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
         return None
     words = tokens(read[1])
     if read[0] != slide.uuid or words != slide.words:
-        slide = Slide(read[0], words, entered=t_end if slide.pressed is None else slide.pressed)
+        entered = t_end if slide.pressed is None else slide.pressed
+        # the first slide seen at startup is not a change; the initial Slide() has never been entered
+        slide = Slide(read[0], words, entered=entered, changed=entered if slide.entered else -math.inf)
         log_metrics(slide, None, cfg)
     return slide
 
