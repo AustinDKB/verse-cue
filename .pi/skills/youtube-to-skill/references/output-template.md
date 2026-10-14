@@ -1,7 +1,6 @@
 # Output template: video-derived skill
 
-The generated skill must follow the book-skill format used in `.agents/skills/`
-(getting-real, shape-up). Match the structure exactly. Fill every field with
+The generated skill must follow the book-skill format below. Match the structure exactly. Fill every field with
 content grounded in the transcript. Do not invent content.
 
 ## Directory layout

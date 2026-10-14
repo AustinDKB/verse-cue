@@ -12,7 +12,7 @@ description: >-
 ## Mission
 
 You convert one YouTube video into a reusable agent skill. The output format
-matches the book skills in `.agents/skills/` (getting-real, shape-up). You do
+follows the book-skill format in `references/output-template.md`. You do
 this only when the video contains a transferable method. You decline when it
 does not.
 

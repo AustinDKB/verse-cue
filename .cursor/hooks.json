@@ -28,11 +28,6 @@
         "matcher": "pytest",
         "failClosed": true
       }
-    ],
-    "sessionStart": [
-      {
-        "command": "vendor/superpowers/hooks/run-hook.cmd session-start"
-      }
     ]
   }
 }
