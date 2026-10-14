@@ -321,7 +321,8 @@ def fire(pp, slide: Slide, at: float, now: float, wait, cfg: dict) -> Slide:
         return slide
     at = max(at, gap_end)
     wait(at)
-    if (pp.slide() or (None,))[0] != slide.uuid:
+    read = pp.slide()
+    if read is None or read[0] != slide.uuid or tokens(read[1]) != slide.words:
         return slide
     pp.next(at)
     log_metrics(slide, at, cfg)

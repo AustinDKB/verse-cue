@@ -423,3 +423,21 @@ def test_blank_cue_held_for_the_gap_fires_without_more_voice(cfg, monkeypatch):
     vc.run(operator(frames), pp, ScriptedModel([]), cfg, wait=wait)
     assert pp.fires == [8]
     assert all(at <= tick + cfg["model"]["hop_s"] for tick, at in waits)
+
+
+def test_operator_moving_to_same_uuid_new_text_during_gap_wait_cancels_the_press(cfg):
+    # A fires at t=5 onto (A, second); its tail is held for the gap; while fire() waits for t=7 the operator
+    # moves to (A, third): same uuid, new text, so the press is cancelled
+    second = "we will sing your praise forever and ever amen"
+    third = "holy holy holy lord god almighty early in the morning"
+    tail = words_at([(3.4, "forever"), (3.5, "and"), (3.6, "ever"), (3.7, "amen")])  # window t=6
+    windows = [[]] * 4 + [heard_again([5])[0], tail]
+    pp = ScriptedPP([("A", SLIDE), ("A", second), ("A", third), ("B", "x")])
+
+    def wait(t):
+        if t > 6.5:
+            pp.set(2)
+
+    vc.run(silent_frames([1, 2, 3, 4, 5, 6, 7]), pp, ScriptedModel(windows), cfg, wait=wait)
+    assert pp.fires == [pytest.approx(5.0, abs=0.05)]
+    assert pp.i == 2
