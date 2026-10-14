@@ -89,6 +89,10 @@ maybe schedule a fire time.
 **lead_s (0.3)** — Fire this many seconds *before* the predicted start of
 the last word, so the slide changes as they sing it.
 
+**min_gap_s (2.0)** — Never change slides sooner than 2s after the last
+change, ours or the operator's. A fire inside that window waits for it to
+end; it is never dropped.
+
 **guard_s (0.3)** — Ignore words in the first 0.3s of a new slide. That’s
 bleed from the previous line still in the window.
 

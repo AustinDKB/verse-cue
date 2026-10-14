@@ -150,6 +150,7 @@ class Slide:
     any_match: bool = False
     raw: list[str] = field(default_factory=list)
     pressed: float | None = None  # our Next on this slide; the next slide dates from it, not from a lagging read
+    changed: float | None = -math.inf  # last slide change (ours or the operator's); min_gap_s counts from it
 
 
 def transcribe(model, audio: np.ndarray, t_start: float, m: dict, prompt: str) -> tuple[list, float]:
@@ -235,11 +236,11 @@ def log_metrics(slide: Slide, at: float | None, cfg: dict) -> None:
 
 
 def blank_tick(slide: Slide, chunk: np.ndarray, t_end: float, blank: dict) -> float | None:
-    """Blank slide: advance on the first voice after the settle period. No slide at all: never."""
+    """Blank slide: advance on the first voice after settling, or on a cue held for the gap. No slide: never."""
     if not slide.uuid:
         return None
     settled = t_end - slide.entered >= blank["blank_settle_s"]
-    return t_end if settled and speech_in(chunk, blank) else None
+    return t_end if slide.predicted is not None or (settled and speech_in(chunk, blank)) else None
 
 
 def decide(slide: Slide, predicted: float | None, now: float, hop_s: float) -> float | None:
@@ -261,8 +262,8 @@ def overdue(slide: Slide, d: dict, now: float) -> float | None:
     return now
 
 
-def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> float | None:
-    """Transcribe the window, align to the slide, return the time to fire or None."""
+def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> tuple[float | None, float]:
+    """Transcribe the window, align to the slide, return (time to fire or None, now after inference)."""
     audio = np.concatenate(ring)
     start = t_end - len(audio) / SR
     latest, infer = transcribe(model, audio, start, cfg["model"], " ".join(slide.words))
@@ -273,9 +274,8 @@ def lyric_tick(slide: Slide, ring: deque, t_end: float, model, cfg: dict) -> flo
     slide.pairs = align(slide.words, heard)
     slide.any_match = slide.any_match or bool(slide.pairs)
     now = t_end + infer
-    return decide(slide, predict(slide.pairs, len(slide.words), d), now, cfg["model"]["hop_s"]) or overdue(
-        slide, d, now
-    )
+    at = decide(slide, predict(slide.pairs, len(slide.words), d), now, cfg["model"]["hop_s"]) or overdue(slide, d, now)
+    return at, now
 
 
 def paint(words: list[str], matched: set[int], cue: set[int]) -> str:
@@ -305,20 +305,35 @@ def show(slide: Slide, d: dict, file=sys.stderr) -> None:
     print(f"slide  {paint(slide.words, matched, cues) or '(blank)'}", file=file)
 
 
-def fire(pp, slide: Slide, at: float, wait, cfg: dict) -> Slide:
-    """Advance unless the slide changed (or cannot be read) by the time we would press Next.
+def fire(pp, slide: Slide, cue: tuple[float, float], wait, cfg: dict) -> Slide:
+    """Advance at cue = (fire time, now) unless the slide changed (or cannot be read) by the time we would press Next.
 
+    A fire within min_gap_s of the last change waits for the gap to end; when that is more than
+    one hop away, the cue is held on the slide and the loop retries it on a later tick.
     After a press, start the slide fresh from the fire time: the next slide may share this uuid
     or the status may lag, and neither may fire again on the evidence that just fired. A blank
     slide has no evidence to reset, so its settle starts only after the status lag has passed.
     """
+    at, now = cue
+    gap_end = slide.changed + cfg["decide"].get("min_gap_s", 2.0)
+    if gap_end > now + cfg["model"]["hop_s"]:
+        slide.predicted = at
+        return slide
+    at = max(at, gap_end)
     wait(at)
-    if (pp.slide() or (None,))[0] != slide.uuid:
+    read = pp.slide()
+    if read is None or (read[0], tokens(read[1])) != (slide.uuid, slide.words):
         return slide
     pp.next(at)
     log_metrics(slide, at, cfg)
     lag = 0 if slide.words else max(cfg["blank"]["blank_settle_s"], 2 * cfg["model"]["hop_s"])
-    return Slide(slide.uuid, slide.words, entered=at + lag, pressed=at)
+    return Slide(slide.uuid, slide.words, entered=at + lag, pressed=at, changed=at)
+
+
+def entered_at(slide: Slide, t_end: float, hop_s: float) -> float:
+    """When the newly read slide began: our press if the status is still lagging behind it, else now."""
+    ours = slide.pressed is not None and t_end - slide.pressed <= 3 * hop_s
+    return slide.pressed if ours else t_end
 
 
 def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
@@ -327,8 +342,11 @@ def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
     if read is None:
         return None
     words = tokens(read[1])
-    if read[0] != slide.uuid or words != slide.words:
-        slide = Slide(read[0], words, entered=t_end if slide.pressed is None else slide.pressed)
+    if slide.changed is None or (read[0], words) != (slide.uuid, slide.words):
+        entered = entered_at(slide, t_end, cfg["model"]["hop_s"])
+        # the first slide seen at startup is not a change
+        changed = -math.inf if slide.changed is None else entered
+        slide = Slide(read[0], words, entered=entered, changed=changed)
         log_metrics(slide, None, cfg)
     return slide
 
@@ -337,21 +355,21 @@ def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
     """The loop. frames yields (t_end, hop-sized float32 chunk); pp has .slide() (None = unreadable) and .next(at)."""
     m = cfg["model"]
     ring: deque = deque(maxlen=round(m["window_s"] / m["hop_s"]))
-    slide = Slide()
+    slide = Slide(changed=None)  # nothing read yet: the first read is always a new slide
     for t_end, chunk in frames:
         ring.append(chunk)
         current = track(pp, slide, t_end, cfg)
         if current is None:  # skip this tick; the cue keeps its prediction and retries next hop
             continue
         slide = current
-        at = (
-            blank_tick(slide, chunk, t_end, cfg["blank"])
+        cue = (
+            (blank_tick(slide, chunk, t_end, cfg["blank"]), t_end)
             if not slide.words
             else lyric_tick(slide, ring, t_end, model, cfg)
         )
         show(slide, cfg["decide"], cfg.get("display", sys.stderr))
-        if at is not None:
-            slide = fire(pp, slide, at, wait, cfg)
+        if cue[0] is not None:
+            slide = fire(pp, slide, cue, wait, cfg)
 
 
 def mic_frames(device: str, hop_s: float):  # pragma: no cover - needs audio hardware

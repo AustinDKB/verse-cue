@@ -22,7 +22,9 @@ Early beats late. Fire time is the last *heard* tail word, plus remaining
 words × clamped singing rate, minus `lead_s`. A later, closer match overwrites
 that timer. Blank (instrumental) slides advance on the first voice. A slide
 change (new uuid or new text) or our own Next starts over, so one sung pass
-fires once; a failed status read skips the hop instead of firing on stale state.
+fires once; a fire within `min_gap_s` (2 s) of the last slide change, ours or
+the operator's, waits out the gap instead of dropping; a failed status read
+skips the hop instead of firing on stale state.
 
 ## Copy-paste install
 
