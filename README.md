@@ -157,7 +157,7 @@ uv run verse-cue-harvest bench --service services\2026-10-25_0930
   from `XAI_API_KEY`, else the `XAI_API_KEY=...` line in `[commentary] key_file`
   (default `~/.config/dictate/xai.env`).
 - `bench --service` replays `audio.wav` and scores only the operator's own slide changes; a fire the
-  operator stepped back from is replayed as one slide, scored against the operator's next change. With fewer
+  operator stepped back from within 5 s is replayed as one slide, scored against the operator's next change. With fewer
   than 10 of them it says the service is too thin to score.
 
 ## Configuration

@@ -294,12 +294,13 @@ THIN = 10  # fewer operator-changed slides than this is too little truth to scor
 
 
 def stepped_back(slides: list[dict], j: int) -> bool:
-    """We advanced to slide j and the operator went straight back to j-1."""
+    """We advanced to slide j and the operator went back to j-1 within REVERT_S; later is a Next onto a repeat."""
     return (
         0 < j < len(slides) - 1
         and slides[j]["change"] == "ours"
         and slides[j + 1]["change"] == "operator"
         and slides[j + 1]["uuid"] == slides[j - 1]["uuid"]
+        and slides[j + 1]["start"] - slides[j]["start"] <= REVERT_S
     )
 
 
@@ -335,8 +336,7 @@ def service_slides(service: Path) -> list[dict]:
             slides[-1]["fired"] = round(last_fire - t0, 2)
     # we advanced to j, the operator stepped straight back to j-1: that fire was early
     for j in range(1, len(slides) - 1):
-        if stepped_back(slides, j):
-            slides[j - 1]["early_reverted"] = slides[j + 1]["start"] - slides[j]["start"] <= REVERT_S
+        slides[j - 1]["early_reverted"] = stepped_back(slides, j)
     return slides
 
 
@@ -381,7 +381,7 @@ def bench_service(service: Path, model, cfg: dict) -> dict:
     """Replay audio.wav against the slides the live run saw. Truth = the operator's own slide changes only.
 
     Slides we advanced are replayed at our fire time but not scored: our own press is not ground truth.
-    A fire the operator stepped back from (however late) replays as one slide, true at the operator's next change.
+    A fire the operator stepped back from within REVERT_S replays as one slide, true at the operator's next change.
     """
     slides = service_slides(service)
     undone = {k for j in range(len(slides)) if stepped_back(slides, j) for k in (j, j + 1)}

@@ -261,16 +261,15 @@ def test_bench_service_scores_operator_changes_only(tmp_path):
     assert r["lengths"] == [4.0, 4.0]
 
 
-@pytest.mark.parametrize("back_at", [106.0, 112.0])  # within REVERT_S and later: both are replayed as one A slide
-def test_bench_service_replays_a_step_back_as_one_slide(tmp_path, back_at):
-    # we fire A->B at 104, the operator steps back to A, then moves A->C at 120: truth for A is 120
+def test_bench_service_replays_a_step_back_as_one_slide(tmp_path):
+    # we fire A->B at 104, the operator steps back to A at 106, then moves A->C at 120: truth for A is 120
     svc = write_log(
         tmp_path / "svc",
         [
             row("enter", "A", 100.0, words=("our", "god")),
             row("fire", "A", 100.0, 104.0),
             row("enter", "B", 104.0, words=("he", "reigns")),
-            row("enter", "A", back_at, words=("our", "god")),
+            row("enter", "A", 106.0, words=("our", "god")),
             row("enter", "C", 120.0, words=("x",)),
         ],
     )
@@ -280,6 +279,28 @@ def test_bench_service_replays_a_step_back_as_one_slide(tmp_path, back_at):
     r = hv.bench_service(svc, ScriptedModel([]), cfg)
     assert r["operator_changes"] == 1
     assert r["lengths"] == [20.0]
+
+
+def test_bench_service_scores_a_late_return_as_a_next_onto_a_repeated_slide(tmp_path):
+    # Chorus / Bridge / Chorus: we fire A->B at 130, B is missed, the operator presses Next onto the repeated A at 150
+    svc = write_log(
+        tmp_path / "svc",
+        [
+            row("enter", "A", 100.0, words=("our", "god")),
+            row("fire", "A", 100.0, 130.0),
+            row("enter", "B", 130.0, words=("he", "reigns")),
+            row("enter", "A", 150.0, words=("our", "god")),
+            row("enter", "C", 180.0, words=("x",)),
+        ],
+    )
+    write_wav(svc / "audio.wav", 84.0)
+    r = hv.review(svc)
+    assert r["slides"][0]["early_reverted"] is False and r["slides"][1]["miss"] is True
+    cfg = vc.load_config(hv.Path(__file__).resolve().parents[1] / "verse-cue.toml", tmp_path / "none.toml")
+    cfg["aliases"], cfg["display"] = {}, None
+    r = hv.bench_service(svc, ScriptedModel([]), cfg)
+    assert r["operator_changes"] == 2
+    assert r["lengths"] == [20.0, 30.0]
 
 
 def test_bench_services_resolves_empty_model_name_from_hardware(tmp_path, monkeypatch):
