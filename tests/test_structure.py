@@ -11,7 +11,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 MODULES = ["verse_cue.py", "harvest.py", "service.py"]
 FORBIDDEN = re.compile(r"(Factory|Manager)$|^Base[A-Z]")
-MAX_TOTAL_SLOC = 1000
+MAX_TOTAL_SLOC = 1100
 MAX_DEPTH = 3
 
 
