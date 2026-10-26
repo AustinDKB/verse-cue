@@ -27,7 +27,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_NO_DEV=1
 
 COPY pyproject.toml uv.lock README.md ./
-COPY verse_cue.py harvest.py verse-cue.toml ./
+COPY verse_cue.py harvest.py service.py verse-cue.toml ./
 RUN uv sync --frozen --no-dev --extra cuda --python python3.12
 
 COPY scripts/gpu_models.py scripts/gpu_prefetch.py scripts/

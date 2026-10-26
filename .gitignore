@@ -12,3 +12,4 @@ docs/metrics/bench.json
 *.wav
 !media/narration.wav
 media/models/
+services/

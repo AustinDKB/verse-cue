@@ -5,6 +5,9 @@ verse-cue-harvest aliases  [--limit N]   data/*.wav (mix) -> aliases.json
 verse-cue-harvest vocals   [--limit N]   data/*.wav -> data/vocals/*.wav (Demucs; mix untouched)
 verse-cue-harvest bench    [--limit N]   prefers data/vocals/ when present
 verse-cue-harvest graphs                 docs/metrics/*.json -> docs/metrics/*.png
+verse-cue-harvest review  <service-dir>  slides.jsonl -> review.json (operator overrides, misses, reverted fires)
+verse-cue-harvest comment <service-dir> [--file audio] [--device mic]  speak your thoughts -> commentary.txt (Grok STT)
+verse-cue-harvest bench --service <dir>  replay a saved service; the operator's own slide changes are the truth
 """
 
 from __future__ import annotations
@@ -227,9 +230,8 @@ def saturated(curve: list[int], window: int = 10, pct: float = 1.0) -> bool:
 
 def alias_passes(cfg: dict) -> list[tuple[object, float]]:
     """Hot passes with the tiny model at each temperature, then one pass with the real runtime model."""
-    a, m = cfg["alias"], cfg["model"]
-    real = (m["name"], m["compute_type"]) if m["name"] else vc.pick_model(cfg["hardware"], vc.gpu_gb())
-    return [(get_model(a["model"], "int8"), t) for t in a["temperatures"]] + [(get_model(*real), 0.0)]
+    a = cfg["alias"]
+    return [(get_model(a["model"], "int8"), t) for t in a["temperatures"]] + [(get_model(*vc.model_spec(cfg)), 0.0)]
 
 
 def mine_song(wav: Path, passes: list, m: dict) -> Counter:
@@ -455,11 +457,20 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="verse-cue-harvest", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("command", choices=["download", "aliases", "vocals", "bench", "graphs"])
+    parser.add_argument("command", choices=["download", "aliases", "vocals", "bench", "graphs", "review", "comment"])
+    parser.add_argument("service_dir", nargs="?", type=Path, help="review / comment: the services/<date> folder")
+    parser.add_argument("--service", type=Path, help="bench: replay this saved service instead of the songs")
+    parser.add_argument("--file", type=Path, help="comment: send this audio file instead of recording")
+    parser.add_argument("--device", help="comment: record from the first mic whose name contains this")
     parser.add_argument("--limit", type=int, default=None, help="max songs (bench defaults to [bench].songs)")
     args = parser.parse_args(argv)
     cfg = vc.load_config()
     cfg["aliases"] = vc.load_aliases()
+    if args.command in ("review", "comment") or (args.command == "bench" and args.service):
+        import service
+
+        service.main(args, cfg, parser.error)
+        return
     limit = args.limit if args.limit is not None else 10_000
     steps = {
         "download": lambda: download(limit),
