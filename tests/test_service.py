@@ -1,5 +1,7 @@
 """Service bundle (live side), review, commentary and service replay."""
 
+import email
+import email.policy
 import json
 import math
 import wave
@@ -240,7 +242,13 @@ def test_stt_post_builds_multipart(monkeypatch):
     assert hv.stt_post(b"RIFFdata", "k") == {"text": "ok"}
     req = sent["req"]
     assert req.full_url == "https://api.x.ai/v1/stt" and req.get_header("Authorization") == "Bearer k"
-    assert b"grok-voice-transcribe-2.0" in req.data and b"RIFFdata" in req.data and b'name="file"' in req.data
+    msg = email.message_from_bytes(
+        b"Content-Type: " + req.get_header("Content-type").encode() + b"\r\n\r\n" + req.data, policy=email.policy.HTTP
+    )
+    parts = {p.get_param("name", header="content-disposition"): p for p in msg.iter_parts()}
+    assert parts["model"].get_content() == "grok-voice-transcribe-2.0"
+    assert parts["file"].get_content_type() == "audio/wav" and parts["file"].get_filename() == "commentary.wav"
+    assert parts["file"].get_payload(decode=True) == b"RIFFdata"
 
 
 def test_bench_service_scores_operator_changes_only(tmp_path):

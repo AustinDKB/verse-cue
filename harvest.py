@@ -447,8 +447,7 @@ def stt_post(audio: bytes, key: str) -> dict:
         + b"en\r\n"
         + head("format")
         + b"true\r\n"
-        + head("file", '; filename="commentary.wav"')
-        + b"Content-Type: audio/wav\r\n\r\n"
+        + head("file", '; filename="commentary.wav"\r\nContent-Type: audio/wav')
         + audio
         + f"\r\n--{b}--\r\n".encode()
     )
