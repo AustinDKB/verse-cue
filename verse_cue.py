@@ -16,6 +16,7 @@ import time
 import tomllib
 import unicodedata
 import urllib.request
+import wave
 from collections import deque
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher, get_close_matches
@@ -229,6 +230,7 @@ def log_metrics(slide: Slide, at: float | None, cfg: dict) -> None:
         "entered": slide.entered,
         "fired_at": at,
         "blank": not slide.words,
+        "words": slide.words if at is None else None,  # the slide text, so a saved service can be replayed
         **{k: cfg["model"][k] for k in ("name", "window_s", "hop_s", "prompt_mode")},
     }
     with Path(cfg.get("metrics_file", METRICS)).open("a") as f:
@@ -351,6 +353,32 @@ def track(pp, slide: Slide, t_end: float, cfg: dict) -> Slide | None:
     return slide
 
 
+def save_frames(frames, folder: Path):
+    """Pass frames through while streaming them to folder/audio.wav.
+
+    Log times stay on the capture clock; meta.json's t0 is the capture time of audio.wav's first sample.
+    """
+    folder.mkdir(parents=True, exist_ok=True)
+    first = None
+    with wave.open(str(folder / "audio.wav"), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(SR)
+        for t_end, chunk in frames:
+            if first is None:
+                first = t_end - len(chunk) / SR
+                (folder / "meta.json").write_text(json.dumps({"t0": first}))
+            wav.writeframes((np.clip(chunk, -1, 1) * 32767).astype("<i2").tobytes())
+            yield t_end, chunk
+
+
+def log_transcript(slide: Slide, t_end: float, cfg: dict) -> None:
+    """One line per hop: audio time and the words the model heard in its window."""
+    if cfg.get("transcript_file") and slide.words:
+        with Path(cfg["transcript_file"]).open("a") as f:
+            f.write(json.dumps({"t": round(t_end, 3), "text": " ".join(slide.raw)}) + "\n")
+
+
 def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
     """The loop. frames yields (t_end, hop-sized float32 chunk); pp has .slide() (None = unreadable) and .next(at)."""
     m = cfg["model"]
@@ -367,6 +395,7 @@ def run(frames, pp, model, cfg: dict, wait=sleep_until) -> None:
             if not slide.words
             else lyric_tick(slide, ring, t_end, model, cfg)
         )
+        log_transcript(slide, t_end, cfg)
         show(slide, cfg["decide"], cfg.get("display", sys.stderr))
         if cue[0] is not None:
             slide = fire(pp, slide, cue, wait, cfg)
@@ -432,7 +461,14 @@ def main(argv: list[str] | None = None) -> None:
     cfg = load_config()
     cfg["aliases"] = load_aliases()
     pp = ProPresenter(cfg["propresenter"]["host"], cfg["propresenter"]["port"])
-    run(mic_frames(cfg["audio"]["device"], cfg["model"]["hop_s"]), pp, load_model(cfg), cfg)
+    frames = mic_frames(cfg["audio"]["device"], cfg["model"]["hop_s"])
+    svc = {"save": True, "dir": "services", **cfg.get("service", {})}
+    if svc["save"]:
+        folder = Path(svc["dir"]) / time.strftime("%Y-%m-%d_%H%M")
+        frames = save_frames(frames, folder)
+        cfg["metrics_file"], cfg["transcript_file"] = str(folder / "slides.jsonl"), str(folder / "transcript.jsonl")
+        print(f"verse-cue: saving this service to {folder}", file=sys.stderr)
+    run(frames, pp, load_model(cfg), cfg)
 
 
 if __name__ == "__main__":

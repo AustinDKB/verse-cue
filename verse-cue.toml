@@ -1,6 +1,13 @@
 # verse-cue configuration. Everything the runtime and the harvest tool read lives here.
 # verse-cue.auto.toml (written by `verse-cue-harvest bench`) overrides [model] when present.
 
+[service]
+save = true            # keep audio.wav + transcript.jsonl + slides.jsonl of every live run (stays on this PC)
+dir = "services"       # one folder per run: services/<YYYY-MM-DD_HHMM>/
+
+[commentary]
+key_file = "~/.config/dictate/xai.env"  # KEY=VALUE line XAI_API_KEY=...; the env var XAI_API_KEY wins
+
 [propresenter]
 host = "127.0.0.1"
 port = 1025

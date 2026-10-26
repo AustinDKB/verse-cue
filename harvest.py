@@ -5,6 +5,9 @@ verse-cue-harvest aliases  [--limit N]   data/*.wav (mix) -> aliases.json
 verse-cue-harvest vocals   [--limit N]   data/*.wav -> data/vocals/*.wav (Demucs; mix untouched)
 verse-cue-harvest bench    [--limit N]   prefers data/vocals/ when present
 verse-cue-harvest graphs                 docs/metrics/*.json -> docs/metrics/*.png
+verse-cue-harvest review  <service-dir>  slides.jsonl -> review.json (operator overrides, misses, reverted fires)
+verse-cue-harvest comment <service-dir> [--file audio]  speak your thoughts -> commentary.txt (Grok STT)
+verse-cue-harvest bench --service <dir>  replay a saved service; the operator's own slide changes are the truth
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ import subprocess
 import time
 import urllib.parse
 import urllib.request
+import uuid
 import wave
 from collections import Counter, defaultdict
 from difflib import SequenceMatcher
@@ -286,6 +290,208 @@ def bench_song(wav: Path, model, cfg: dict) -> dict:
     }
 
 
+REVERT_S = 5.0  # an operator step back this soon after our fire means the fire was early
+THIN = 10  # fewer operator-changed slides than this is too little truth to score a service
+
+
+def service_slides(service: Path) -> list[dict]:
+    """slides.jsonl -> one dict per slide shown: start and fired (audio s), words, change ours|operator|start."""
+    rows = [json.loads(x) for x in (service / "slides.jsonl").read_text().splitlines() if x.strip()]
+    meta = service / "meta.json"
+    enters = [r for r in rows if r["event"] == "enter"]
+    t0 = json.loads(meta.read_text())["t0"] if meta.exists() else (enters[0]["entered"] if enters else 0.0)
+    slides: list[dict] = []
+    for r in rows:
+        if r["event"] == "enter":
+            ours = bool(slides) and slides[-1]["fired"] is not None
+            change = "start" if not slides else "ours" if ours else "operator"
+            slides.append(
+                {
+                    "start": round(r["entered"] - t0, 2),
+                    "uuid": r["uuid"],
+                    "words": r.get("words"),
+                    "blank": r["blank"],
+                    "change": change,
+                    "fired": None,
+                }
+            )
+        elif slides:
+            slides[-1]["fired"] = round(r["fired_at"] - t0, 2)
+    return slides
+
+
+def review(service: Path) -> dict:
+    """Mistakes from slides.jsonl alone: operator overrides, misses (we never fired), early fires reverted."""
+    slides = service_slides(service)
+    for sl in slides:
+        sl["early_reverted"] = False
+    for j in range(
+        1, len(slides) - 1
+    ):  # we advanced to j, the operator stepped straight back to j-1: that fire was early
+        back = slides[j + 1]
+        if slides[j]["change"] == "ours" and back["change"] == "operator" and back["uuid"] == slides[j - 1]["uuid"]:
+            slides[j - 1]["early_reverted"] = back["start"] - slides[j]["start"] <= REVERT_S
+    for i, sl in enumerate(
+        slides
+    ):  # a slide we entered that the operator undid at once is the fire's fault, not a miss
+        undone = 0 < i < len(slides) - 1 and slides[i + 1]["uuid"] == slides[i - 1]["uuid"]
+        sl["miss"] = (
+            i + 1 < len(slides) and sl["fired"] is None and slides[i + 1]["change"] == "operator" and not undone
+        )
+    out = {
+        "service": service.name,
+        "counts": {
+            "slide_changes": max(len(slides) - 1, 0),
+            "ours": sum(s["change"] == "ours" for s in slides),
+            "operator_overrides": sum(s["change"] == "operator" for s in slides),
+            "misses": sum(s["miss"] for s in slides),
+            "early_reverted": sum(s["early_reverted"] for s in slides),
+        },
+        "slides": [{k: v for k, v in s.items() if k != "words"} for s in slides],
+    }
+    (service / "review.json").write_text(json.dumps(out, indent=1))
+    return out
+
+
+def print_review(r: dict) -> None:
+    c = r["counts"]
+    print(f"{r['service']}: {c['slide_changes']} slide changes")
+    print(
+        f"  ours {c['ours']} | operator overrides {c['operator_overrides']} | misses {c['misses']}"
+        f" | early fires reverted {c['early_reverted']}"
+    )
+    bad = [(i, s) for i, s in enumerate(r["slides"]) if s["miss"] or s["early_reverted"] or s["change"] == "operator"]
+    for i, s in bad[:20]:
+        what = "early fire reverted" if s["early_reverted"] else "missed" if s["miss"] else "operator override"
+        print(f"  slide {i} at {s['start']:.1f}s: {what}")
+    if len(bad) > 20:
+        print(f"  ... {len(bad) - 20} more in review.json")
+
+
+def bench_service(service: Path, model, cfg: dict) -> dict:
+    """Replay audio.wav against the slides the live run saw. Truth = the operator's own slide changes only.
+
+    Slides we advanced are replayed at our fire time but not scored: our own press is not ground truth.
+    """
+    slides = service_slides(service)
+    if any(s["words"] is None for s in slides):
+        raise SystemExit(f"{service}: slides.jsonl has no slide text (saved by an older verse-cue); cannot replay")
+    timeline = [(s["start"], " ".join(s["words"])) for s in slides]
+    cell = [0.0]
+    pp = FakePP(timeline, lambda: cell[0])
+    vc.run(
+        wav_frames(service / "audio.wav", cfg["model"]["hop_s"], cell),
+        pp,
+        model,
+        {**cfg, "metrics_file": os.devnull},
+        wait=lambda _t: None,
+    )
+    starts = [t for t, _ in timeline]
+    fires = (pp.fires + [math.nan] * len(starts))[: len(starts) - 1]
+    scored = [i for i in range(1, len(slides)) if slides[i]["change"] == "operator"]
+    return {
+        "deltas": [fires[i - 1] - starts[i] for i in scored],
+        "lengths": [starts[i] - starts[i - 1] for i in scored],
+        "operator_changes": len(scored),
+    }
+
+
+def bench_services(cfg: dict, service: Path) -> None:
+    model = get_model(cfg["model"]["name"], cfg["model"]["compute_type"])
+    r = bench_service(service, model, cfg)
+    if r["operator_changes"] < THIN:
+        print(
+            f"only {r['operator_changes']} operator-changed slides (< {THIN}): too thin to score;"
+            " the replay inputs are audio.wav + slides.jsonl"
+        )
+    print(summarize(r["deltas"], r["lengths"]))
+
+
+STT_URL = "https://api.x.ai/v1/stt"
+STT_MODEL = "grok-voice-transcribe-2.0"
+
+
+def load_key(cfg: dict, env=os.environ) -> str:
+    """XAI_API_KEY from the environment, else the KEY=VALUE line in [commentary].key_file. Never printed."""
+    if env.get("XAI_API_KEY"):
+        return env["XAI_API_KEY"].strip()
+    path = Path(cfg.get("commentary", {}).get("key_file", "~/.config/dictate/xai.env")).expanduser()
+    if path.exists():
+        for line in path.read_text().splitlines():
+            name, _, value = line.partition("=")
+            if name.strip() == "XAI_API_KEY" and value.strip():
+                return value.strip().strip("\"'")
+    raise SystemExit("no xAI key: set XAI_API_KEY or put XAI_API_KEY=... in [commentary].key_file")
+
+
+def stt_post(audio: bytes, key: str) -> dict:
+    """POST one audio file to xAI speech-to-text (multipart by hand: no extra dependency)."""
+    b = uuid.uuid4().hex
+    head = lambda name, extra="": f'--{b}\r\nContent-Disposition: form-data; name="{name}"{extra}\r\n\r\n'.encode()  # noqa: E731
+    body = (
+        head("model")
+        + STT_MODEL.encode()
+        + b"\r\n"
+        + head("language")
+        + b"en\r\n"
+        + head("format")
+        + b"true\r\n"
+        + head("file", '; filename="commentary.wav"')
+        + b"Content-Type: audio/wav\r\n\r\n"
+        + audio
+        + f"\r\n--{b}--\r\n".encode()
+    )
+    req = urllib.request.Request(
+        STT_URL,
+        body,
+        {"Authorization": "Bearer " + key, "Content-Type": f"multipart/form-data; boundary={b}", "User-Agent": UA},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=600) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"xAI STT failed: HTTP {e.code}") from None
+
+
+def stt_text(body: dict) -> str:
+    """Plain text of the response: its `text`, else the final segments joined."""
+    if body.get("text"):
+        return body["text"].strip()
+    segs = body.get("segments") or body.get("events") or []
+    return " ".join(t for s in segs if s.get("is_final", True) and (t := (s.get("text") or "").strip()))
+
+
+def record_until_enter(path: Path) -> None:  # pragma: no cover - needs audio hardware
+    """Default mic -> 16 kHz mono wav until Enter."""
+    import sounddevice as sd
+
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(vc.SR)
+
+        def on_audio(data, _frames, _time, _status) -> None:
+            w.writeframes((np.clip(data[:, 0], -1, 1) * 32767).astype("<i2").tobytes())
+
+        with sd.InputStream(samplerate=vc.SR, channels=1, dtype="float32", callback=on_audio):
+            input("Recording your comments. Press Enter to stop. ")
+
+
+def comment(service: Path, cfg: dict, file: Path | None = None, post=stt_post) -> str:
+    """Record (or take --file) spoken comments, transcribe with Grok STT, save next to the service."""
+    key = load_key(cfg)
+    wav = service / "commentary.wav"
+    if file is None:
+        record_until_enter(wav)
+    elif file.resolve() != wav.resolve():
+        wav.write_bytes(file.read_bytes())
+    body = post(wav.read_bytes(), key)
+    (service / "commentary.json").write_text(json.dumps(body, indent=1))
+    text = stt_text(body)
+    (service / "commentary.txt").write_text(text + "\n")
+    return text
+
+
 def flat(runs: list[dict], key: str) -> list:
     return [x for r in runs for x in r[key]]
 
@@ -455,16 +661,29 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="verse-cue-harvest", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("command", choices=["download", "aliases", "vocals", "bench", "graphs"])
+    parser.add_argument("command", choices=["download", "aliases", "vocals", "bench", "graphs", "review", "comment"])
+    parser.add_argument("service_dir", nargs="?", type=Path, help="review / comment: the services/<date> folder")
+    parser.add_argument("--service", type=Path, help="bench: replay this saved service instead of the songs")
+    parser.add_argument("--file", type=Path, help="comment: send this audio file instead of recording")
     parser.add_argument("--limit", type=int, default=None, help="max songs (bench defaults to [bench].songs)")
     args = parser.parse_args(argv)
     cfg = vc.load_config()
     cfg["aliases"] = vc.load_aliases()
     limit = args.limit if args.limit is not None else 10_000
+    if args.command in ("review", "comment") and not args.service_dir:
+        parser.error(f"{args.command} needs a service folder")
     steps = {
+        "review": lambda: print_review(review(args.service_dir)),
+        "comment": lambda: print(
+            f"saved {args.service_dir}/commentary.txt:\n{comment(args.service_dir, cfg, args.file)}"
+        ),
         "download": lambda: download(limit),
         "aliases": lambda: aliases(cfg, songs(limit)),
-        "bench": lambda: report(bench(cfg, songs(min(limit, cfg["bench"]["songs"]))), cfg),
+        "bench": lambda: (
+            bench_services(cfg, args.service)
+            if args.service
+            else report(bench(cfg, songs(min(limit, cfg["bench"]["songs"]))), cfg)
+        ),
         "graphs": graphs,
         "vocals": lambda: vocals(limit),
     }

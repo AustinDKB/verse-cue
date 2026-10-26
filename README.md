@@ -120,6 +120,40 @@ Bench audio is studio mix, not a live vocal. Sunday numbers will move.
 ![RTF per model](docs/metrics/rtf_vs_model.png)
 ![one song](docs/metrics/timeline.png)
 
+## After a service
+
+While `verse-cue` runs it saves the service (set `[service] save = false` to stop; `dir` moves it).
+Audio stays on this PC. `services/` is gitignored.
+
+```
+services/2026-10-25_0930/
+  audio.wav          16 kHz mono input, streamed to disk (about 170 MB per 1.5 h)
+  meta.json          capture-clock time of the first audio sample
+  slides.jsonl       one row per slide entered and per fire (with the slide text)
+  transcript.jsonl   {t, text}: what the model heard, per hop
+  review.json        written by `review`
+  commentary.txt     written by `comment` (also commentary.wav, commentary.json)
+```
+
+On the church PC (Windows, from the verse-cue folder):
+
+```
+uv run verse-cue-harvest review  services\2026-10-25_0930
+uv run verse-cue-harvest comment services\2026-10-25_0930
+uv run verse-cue-harvest bench --service services\2026-10-25_0930
+```
+
+- `review` needs no key press and no notes: a slide change we fired is ours, an enter with no fire
+  before it is an operator override, a slide we never fired on is a miss, and an operator step back
+  within 5 s of our fire marks that fire early.
+- `comment` records from the default mic until Enter, sends only that clip to xAI speech-to-text
+  (`grok-voice-transcribe-2.0`, about $0.10 per hour) and saves `commentary.txt`. Say how the service
+  went and what you want changed. Use `--file clip.wav` to send an existing recording. The key comes
+  from `XAI_API_KEY`, else the `XAI_API_KEY=...` line in `[commentary] key_file`
+  (default `~/.config/dictate/xai.env`).
+- `bench --service` replays `audio.wav` and scores only the operator's own slide changes. With fewer
+  than 10 of them it says the service is too thin to score.
+
 ## Configuration
 
 One file, `verse-cue.toml`. `--setup` writes `[audio].device` and
