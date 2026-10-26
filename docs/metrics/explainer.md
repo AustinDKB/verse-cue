@@ -43,6 +43,12 @@ number.
 Those two fight each other: looser gates cut miss and raise false; tighter
 gates do the reverse.
 
+## `[service]` and `[commentary]` — after a service
+
+`[service]` saves each live run to `services/<date>/`; `[commentary]` sets the
+xAI key file and the mic for `verse-cue-harvest comment`. What each key does
+and what the folder holds: README, **After a service**.
+
 ## `[propresenter]`
 
 **host** — IP of the machine running ProPresenter. Same computer:
