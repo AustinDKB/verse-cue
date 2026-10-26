@@ -458,6 +458,18 @@ def setup(path: Path = CONFIG) -> None:
     print("device:", device, "| model:", load_config(path)["model"]["name"])
 
 
+def service_frames(frames, cfg: dict):
+    """Unless [service].save is off, save this run to services/<YYYY-MM-DD_HHMM>/ while it plays: the frames to run."""
+    svc = {"save": True, "dir": "services", **cfg.get("service", {})}
+    if not svc["save"]:
+        return frames
+    folder = unused(Path(svc["dir"]) / time.strftime("%Y-%m-%d_%H%M"))
+    folder.mkdir(parents=True)
+    cfg["metrics_file"], cfg["transcript_file"] = str(folder / "slides.jsonl"), str(folder / "transcript.jsonl")
+    print(f"verse-cue: saving this service to {folder}", file=sys.stderr)
+    return save_frames(frames, folder)
+
+
 def main(argv: list[str] | None = None) -> None:
     """`verse-cue` runs the loop; `verse-cue --setup` writes the config."""
     args = sys.argv[1:] if argv is None else argv
@@ -475,15 +487,7 @@ def main(argv: list[str] | None = None) -> None:
     cfg = load_config()
     cfg["aliases"] = load_aliases()
     pp = ProPresenter(cfg["propresenter"]["host"], cfg["propresenter"]["port"])
-    frames = mic_frames(cfg["audio"]["device"], cfg["model"]["hop_s"])
-    svc = {"save": True, "dir": "services", **cfg.get("service", {})}
-    if svc["save"]:
-        folder = unused(Path(svc["dir"]) / time.strftime("%Y-%m-%d_%H%M"))
-        folder.mkdir(parents=True)
-        frames = save_frames(frames, folder)
-        cfg["metrics_file"], cfg["transcript_file"] = str(folder / "slides.jsonl"), str(folder / "transcript.jsonl")
-        print(f"verse-cue: saving this service to {folder}", file=sys.stderr)
-    run(frames, pp, load_model(cfg), cfg)
+    run(service_frames(mic_frames(cfg["audio"]["device"], cfg["model"]["hop_s"]), cfg), pp, load_model(cfg), cfg)
 
 
 if __name__ == "__main__":

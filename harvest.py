@@ -23,7 +23,6 @@ import subprocess
 import time
 import urllib.parse
 import urllib.request
-import uuid
 import wave
 from collections import Counter, defaultdict
 from difflib import SequenceMatcher
@@ -289,260 +288,6 @@ def bench_song(wav: Path, model, cfg: dict) -> dict:
     }
 
 
-REVERT_S = 5.0  # an operator step back this soon after our fire means the fire was early
-THIN = 10  # fewer operator-changed slides than this is too little truth to score a service
-
-
-def stepped_back(slides: list[dict], j: int) -> bool:
-    """We advanced to slide j and the operator went back to j-1 within REVERT_S; later is a Next onto a repeat."""
-    return (
-        0 < j < len(slides) - 1
-        and slides[j]["change"] == "ours"
-        and slides[j + 1]["change"] == "operator"
-        and slides[j + 1]["uuid"] == slides[j - 1]["uuid"]
-        and slides[j + 1]["start"] - slides[j]["start"] <= REVERT_S
-    )
-
-
-def service_slides(service: Path) -> list[dict]:
-    """slides.jsonl -> one dict per slide: start and fired (audio s), words, change, early_reverted.
-
-    A change is ours only when the slide entered at our press time (verse_cue.entered_at); a press that
-    changed nothing leaves the next change to the operator.
-    """
-    rows = [json.loads(x) for x in (service / "slides.jsonl").read_text().splitlines() if x.strip()]
-    meta = service / "meta.json"
-    enters = [r for r in rows if r["event"] == "enter"]
-    t0 = json.loads(meta.read_text())["t0"] if meta.exists() else (enters[0]["entered"] if enters else 0.0)
-    slides: list[dict] = []
-    last_fire = None
-    for r in rows:
-        if r["event"] == "enter":
-            change = "start" if not slides else "ours" if r["entered"] == last_fire else "operator"
-            last_fire = None
-            slides.append(
-                {
-                    "start": round(r["entered"] - t0, 2),
-                    "uuid": r["uuid"],
-                    "words": r.get("words"),
-                    "blank": r["blank"],
-                    "change": change,
-                    "fired": None,
-                    "early_reverted": False,
-                }
-            )
-        elif slides:
-            last_fire = r["fired_at"]
-            slides[-1]["fired"] = round(last_fire - t0, 2)
-    # we advanced to j, the operator stepped straight back to j-1: that fire was early
-    for j in range(1, len(slides) - 1):
-        slides[j - 1]["early_reverted"] = stepped_back(slides, j)
-    return slides
-
-
-def review(service: Path) -> dict:
-    """Mistakes from slides.jsonl alone: operator overrides, misses (we never fired), early fires reverted."""
-    slides = service_slides(service)
-    # a slide we entered that the operator undid at once is the fire's fault, not a miss
-    for i, sl in enumerate(slides):
-        undone = i > 0 and slides[i - 1]["early_reverted"]
-        sl["miss"] = i + 1 < len(slides) and slides[i + 1]["change"] == "operator" and not undone
-    out = {
-        "service": service.name,
-        "counts": {
-            "slide_changes": max(len(slides) - 1, 0),
-            "ours": sum(s["change"] == "ours" for s in slides),
-            "operator_overrides": sum(s["change"] == "operator" for s in slides),
-            "misses": sum(s["miss"] for s in slides),
-            "early_reverted": sum(s["early_reverted"] for s in slides),
-        },
-        "slides": [{k: v for k, v in s.items() if k != "words"} for s in slides],
-    }
-    (service / "review.json").write_text(json.dumps(out, indent=1))
-    return out
-
-
-def print_review(r: dict) -> None:
-    c = r["counts"]
-    print(f"{r['service']}: {c['slide_changes']} slide changes")
-    print(
-        f"  ours {c['ours']} | operator overrides {c['operator_overrides']} | misses {c['misses']}"
-        f" | early fires reverted {c['early_reverted']}"
-    )
-    bad = [(i, s) for i, s in enumerate(r["slides"]) if s["miss"] or s["early_reverted"] or s["change"] == "operator"]
-    for i, s in bad[:20]:
-        what = "early fire reverted" if s["early_reverted"] else "missed" if s["miss"] else "operator override"
-        print(f"  slide {i} at {s['start']:.1f}s: {what}")
-    if len(bad) > 20:
-        print(f"  ... {len(bad) - 20} more in review.json")
-
-
-def bench_service(service: Path, model, cfg: dict) -> dict:
-    """Replay audio.wav against the slides the live run saw. Truth = the operator's own slide changes only.
-
-    Slides we advanced are replayed at our fire time but not scored: our own press is not ground truth.
-    A fire the operator stepped back from within REVERT_S replays as one slide, true at the operator's next change.
-    """
-    slides = service_slides(service)
-    undone = {k for j in range(len(slides)) if stepped_back(slides, j) for k in (j, j + 1)}
-    slides = [s for k, s in enumerate(slides) if k not in undone]
-    if any(s["words"] is None for s in slides):
-        raise SystemExit(f"{service}: slides.jsonl has no slide text (saved by an older verse-cue); cannot replay")
-    timeline = [(s["start"], " ".join(s["words"])) for s in slides]
-    cell = [0.0]
-    pp = FakePP(timeline, lambda: cell[0])
-    vc.run(
-        wav_frames(service / "audio.wav", cfg["model"]["hop_s"], cell),
-        pp,
-        model,
-        {**cfg, "metrics_file": os.devnull},
-        wait=lambda _t: None,
-    )
-    starts = [t for t, _ in timeline]
-    fires = (pp.fires + [math.nan] * len(starts))[: len(starts) - 1]
-    scored = [i for i in range(1, len(slides)) if slides[i]["change"] == "operator"]
-    return {
-        "deltas": [fires[i - 1] - starts[i] for i in scored],
-        "lengths": [starts[i] - starts[i - 1] for i in scored],
-        "operator_changes": len(scored),
-    }
-
-
-def bench_services(cfg: dict, service: Path) -> None:
-    r = bench_service(service, get_model(*vc.model_spec(cfg)), cfg)
-    if r["operator_changes"] < THIN:
-        print(
-            f"only {r['operator_changes']} operator-changed slides (< {THIN}): too thin to score;"
-            " the replay inputs are audio.wav + slides.jsonl"
-        )
-    print(summarize(r["deltas"], r["lengths"]))
-
-
-STT_URL = "https://api.x.ai/v1/stt"
-STT_MODEL = "grok-voice-transcribe-2.0"
-
-
-def load_key(cfg: dict, env=os.environ) -> str:
-    """XAI_API_KEY from the environment, else the KEY=VALUE line in [commentary].key_file. Never printed."""
-    if env.get("XAI_API_KEY"):
-        return env["XAI_API_KEY"].strip()
-    path = Path(cfg.get("commentary", {}).get("key_file", "~/.config/dictate/xai.env")).expanduser()
-    if path.exists():
-        for line in path.read_text().splitlines():
-            name, _, value = line.partition("=")
-            if name.strip() == "XAI_API_KEY" and value.strip():
-                return value.strip().strip("\"'")
-    raise SystemExit("no xAI key: set XAI_API_KEY or put XAI_API_KEY=... in [commentary].key_file")
-
-
-def stt_post(audio: bytes, key: str) -> dict:
-    """POST one audio file to xAI speech-to-text (multipart by hand: no extra dependency)."""
-    b = uuid.uuid4().hex
-    head = lambda name, extra="": f'--{b}\r\nContent-Disposition: form-data; name="{name}"{extra}\r\n\r\n'.encode()  # noqa: E731
-    body = (
-        head("model")
-        + STT_MODEL.encode()
-        + b"\r\n"
-        + head("language")
-        + b"en\r\n"
-        + head("format")
-        + b"true\r\n"
-        + head("file", '; filename="commentary.wav"\r\nContent-Type: audio/wav')
-        + audio
-        + f"\r\n--{b}--\r\n".encode()
-    )
-    req = urllib.request.Request(
-        STT_URL,
-        body,
-        {"Authorization": "Bearer " + key, "Content-Type": f"multipart/form-data; boundary={b}", "User-Agent": UA},
-    )
-    with urllib.request.urlopen(req, timeout=600) as response:
-        return json.load(response)
-
-
-def stt_text(body: dict) -> str:
-    """Plain text of the response: its `text`, else the final segments joined."""
-    if body.get("text"):
-        return body["text"].strip()
-    segs = body.get("segments") or body.get("events") or []
-    return " ".join(t for s in segs if s.get("is_final", True) and (t := (s.get("text") or "").strip()))
-
-
-def pick_device(devices, want: str) -> int | None:
-    """Index of the first input device whose name contains want (any case); None = the default input."""
-    if not want:
-        return None
-    inputs = [(i, d["name"]) for i, d in enumerate(devices) if d["max_input_channels"] > 0]
-    hit = next((i for i, name in inputs if want.lower() in name.lower()), None)
-    if hit is None:
-        found = ", ".join(name for _, name in inputs) or "none"
-        print(f"no input device matching {want!r}; recording from the default input. Found: {found}")
-    return hit
-
-
-def to_16k(audio: np.ndarray, rate: int) -> np.ndarray:
-    """Linear resample of mono float audio from rate to 16 kHz."""
-    if rate == vc.SR or not audio.size:
-        return audio
-    n = round(len(audio) * vc.SR / rate)
-    return np.interp(np.arange(n) * rate / vc.SR, np.arange(len(audio)), audio).astype(np.float32)
-
-
-def record_until_enter(path: Path, want: str) -> None:  # pragma: no cover - needs audio hardware
-    """Mic named like want (else the default) -> 16 kHz mono wav until Enter.
-
-    A mic that refuses 16 kHz (the Snowball on Windows) records at its own rate and is resampled.
-    """
-    import sounddevice as sd
-
-    device = pick_device(sd.query_devices(), want)
-    try:
-        sd.check_input_settings(device=device, channels=1, dtype="float32", samplerate=vc.SR)
-        rate = vc.SR
-    except sd.PortAudioError:
-        rate = int(sd.query_devices(device, "input")["default_samplerate"])
-    chunks: list[np.ndarray] = []
-
-    def on_audio(data, _frames, _time, _status) -> None:
-        chunks.append(data[:, 0].copy())
-
-    with sd.InputStream(device=device, samplerate=rate, channels=1, dtype="float32", callback=on_audio):
-        input("Recording your comments. Press Enter to stop. ")
-    audio = to_16k(np.concatenate(chunks) if chunks else np.zeros(0, np.float32), rate)
-    with wave.open(str(path), "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(vc.SR)
-        w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
-
-
-def comment(service: Path, cfg: dict, file: Path | None = None, post=stt_post) -> str:
-    """Record (or take --file) one take of spoken comments, transcribe with Grok STT, save next to the service.
-
-    Each take keeps its own commentary-<HHMMSS>.wav/.json/.txt; commentary.txt gets every take appended in order.
-    """
-    key = load_key(cfg)
-    if file is not None and file.resolve().parent == service.resolve() and file.name.startswith("commentary-"):
-        wav = file  # retrying a take this service already has
-    else:
-        wav = vc.unused(service / time.strftime("commentary-%H%M%S.wav"))
-        if file is None:
-            record_until_enter(wav, cfg.get("commentary", {}).get("device", "Snowball"))
-        else:
-            wav.write_bytes(file.read_bytes())
-    audio = wav.read_bytes()
-    try:
-        body = post(audio, key)
-    except OSError as e:
-        raise SystemExit(f"xAI STT failed ({e}); the recording is kept: retry with --file {wav}") from None
-    wav.with_suffix(".json").write_text(json.dumps(body, indent=1))
-    text = stt_text(body)
-    wav.with_suffix(".txt").write_text(text + "\n")
-    with (service / "commentary.txt").open("a") as f:
-        f.write(f"[{wav.stem}] {text}\n")
-    return text
-
-
 def flat(runs: list[dict], key: str) -> list:
     return [x for r in runs for x in r[key]]
 
@@ -721,23 +466,16 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     cfg = vc.load_config()
     cfg["aliases"] = vc.load_aliases()
-    if args.device is not None:
-        cfg.setdefault("commentary", {})["device"] = args.device
+    if args.command in ("review", "comment") or (args.command == "bench" and args.service):
+        import service
+
+        service.main(args, cfg, parser.error)
+        return
     limit = args.limit if args.limit is not None else 10_000
-    if args.command in ("review", "comment") and not args.service_dir:
-        parser.error(f"{args.command} needs a service folder")
     steps = {
-        "review": lambda: print_review(review(args.service_dir)),
-        "comment": lambda: print(
-            f"saved {args.service_dir}/commentary.txt:\n{comment(args.service_dir, cfg, args.file)}"
-        ),
         "download": lambda: download(limit),
         "aliases": lambda: aliases(cfg, songs(limit)),
-        "bench": lambda: (
-            bench_services(cfg, args.service)
-            if args.service
-            else report(bench(cfg, songs(min(limit, cfg["bench"]["songs"]))), cfg)
-        ),
+        "bench": lambda: report(bench(cfg, songs(min(limit, cfg["bench"]["songs"]))), cfg),
         "graphs": graphs,
         "vocals": lambda: vocals(limit),
     }
