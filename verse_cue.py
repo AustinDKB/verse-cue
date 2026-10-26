@@ -67,9 +67,14 @@ def load_model(cfg: dict):
     """faster-whisper model from [model], or from the hardware table when name is empty."""
     from faster_whisper import WhisperModel
 
-    m = cfg["model"]
-    name, compute_type = (m["name"], m["compute_type"]) if m["name"] else pick_model(cfg["hardware"], gpu_gb())
+    name, compute_type = model_spec(cfg)
     return WhisperModel(name, device="auto", compute_type=compute_type)
+
+
+def model_spec(cfg: dict) -> tuple[str, str]:
+    """(model name, compute_type) from [model], or from the hardware table when name is empty."""
+    m = cfg["model"]
+    return (m["name"], m["compute_type"]) if m["name"] else pick_model(cfg["hardware"], gpu_gb())
 
 
 def tokens(text: str) -> list[str]:
@@ -372,6 +377,15 @@ def save_frames(frames, folder: Path):
             yield t_end, chunk
 
 
+def unused(path: Path) -> Path:
+    """path, else path-2, path-3, ...: the first name nothing has taken, so a new run or take never overwrites one."""
+    n, found = 1, path
+    while found.exists():
+        n += 1
+        found = path.with_name(f"{path.stem}-{n}{path.suffix}")
+    return found
+
+
 def log_transcript(slide: Slide, t_end: float, cfg: dict) -> None:
     """One line per hop: audio time and the words the model heard in its window."""
     if cfg.get("transcript_file") and slide.words:
@@ -464,7 +478,8 @@ def main(argv: list[str] | None = None) -> None:
     frames = mic_frames(cfg["audio"]["device"], cfg["model"]["hop_s"])
     svc = {"save": True, "dir": "services", **cfg.get("service", {})}
     if svc["save"]:
-        folder = Path(svc["dir"]) / time.strftime("%Y-%m-%d_%H%M")
+        folder = unused(Path(svc["dir"]) / time.strftime("%Y-%m-%d_%H%M"))
+        folder.mkdir(parents=True)
         frames = save_frames(frames, folder)
         cfg["metrics_file"], cfg["transcript_file"] = str(folder / "slides.jsonl"), str(folder / "transcript.jsonl")
         print(f"verse-cue: saving this service to {folder}", file=sys.stderr)

@@ -132,7 +132,8 @@ services/2026-10-25_0930/
   slides.jsonl       one row per slide entered and per fire (with the slide text)
   transcript.jsonl   {t, text}: what the model heard, per hop
   review.json        written by `review`
-  commentary.txt     written by `comment` (also commentary.wav, commentary.json)
+  commentary.txt     written by `comment`: every take appended in order
+  commentary-<HHMMSS>.wav/.json/.txt   one take each; a new take never overwrites an older one
 ```
 
 On the church PC (Windows, from the verse-cue folder):
@@ -143,15 +144,20 @@ uv run verse-cue-harvest comment services\2026-10-25_0930
 uv run verse-cue-harvest bench --service services\2026-10-25_0930
 ```
 
-- `review` needs no key press and no notes: a slide change we fired is ours, an enter with no fire
-  before it is an operator override, a slide we never fired on is a miss, and an operator step back
-  within 5 s of our fire marks that fire early.
-- `comment` records from the default mic until Enter, sends only that clip to xAI speech-to-text
-  (`grok-voice-transcribe-2.0`, about $0.10 per hour) and saves `commentary.txt`. Say how the service
-  went and what you want changed. Use `--file clip.wav` to send an existing recording. The key comes
+- `review` needs no key press and no notes: a slide that entered at our press is ours, any other
+  change is an operator override, a slide the operator had to move on from is a miss (even if our
+  press changed nothing), and an operator step back within 5 s of our fire marks that fire early.
+- `comment` records from the Blue Snowball (the first input whose name contains `[commentary] device`,
+  or `--device NAME`; else the default input, with the devices found printed) until Enter. A mic that
+  refuses 16 kHz is recorded at its own rate and resampled. It sends only that clip to xAI
+  speech-to-text (`grok-voice-transcribe-2.0`, about $0.10 per hour), saves the take as
+  `commentary-<HHMMSS>.*` and appends it to `commentary.txt`. Say how the service went and what you
+  want changed. Use `--file clip.wav` to send an existing recording (or to retry a take whose upload
+  failed). The key comes
   from `XAI_API_KEY`, else the `XAI_API_KEY=...` line in `[commentary] key_file`
   (default `~/.config/dictate/xai.env`).
-- `bench --service` replays `audio.wav` and scores only the operator's own slide changes. With fewer
+- `bench --service` replays `audio.wav` and scores only the operator's own slide changes; a fire the
+  operator stepped back from is replayed as one slide, scored against the operator's next change. With fewer
   than 10 of them it says the service is too thin to score.
 
 ## Configuration

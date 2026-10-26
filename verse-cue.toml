@@ -3,10 +3,11 @@
 
 [service]
 save = true            # keep audio.wav + transcript.jsonl + slides.jsonl of every live run (stays on this PC)
-dir = "services"       # one folder per run: services/<YYYY-MM-DD_HHMM>/
+dir = "services"       # one folder per run: services/<YYYY-MM-DD_HHMM>/ (-2, -3 ... when that minute is taken)
 
 [commentary]
 key_file = "~/.config/dictate/xai.env"  # KEY=VALUE line XAI_API_KEY=...; the env var XAI_API_KEY wins
+device = "Snowball"    # record from the first input whose name contains this (any case); else the default input
 
 [propresenter]
 host = "127.0.0.1"

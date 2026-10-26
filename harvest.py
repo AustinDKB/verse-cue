@@ -6,7 +6,7 @@ verse-cue-harvest vocals   [--limit N]   data/*.wav -> data/vocals/*.wav (Demucs
 verse-cue-harvest bench    [--limit N]   prefers data/vocals/ when present
 verse-cue-harvest graphs                 docs/metrics/*.json -> docs/metrics/*.png
 verse-cue-harvest review  <service-dir>  slides.jsonl -> review.json (operator overrides, misses, reverted fires)
-verse-cue-harvest comment <service-dir> [--file audio]  speak your thoughts -> commentary.txt (Grok STT)
+verse-cue-harvest comment <service-dir> [--file audio] [--device mic]  speak your thoughts -> commentary.txt (Grok STT)
 verse-cue-harvest bench --service <dir>  replay a saved service; the operator's own slide changes are the truth
 """
 
@@ -231,9 +231,8 @@ def saturated(curve: list[int], window: int = 10, pct: float = 1.0) -> bool:
 
 def alias_passes(cfg: dict) -> list[tuple[object, float]]:
     """Hot passes with the tiny model at each temperature, then one pass with the real runtime model."""
-    a, m = cfg["alias"], cfg["model"]
-    real = (m["name"], m["compute_type"]) if m["name"] else vc.pick_model(cfg["hardware"], vc.gpu_gb())
-    return [(get_model(a["model"], "int8"), t) for t in a["temperatures"]] + [(get_model(*real), 0.0)]
+    a = cfg["alias"]
+    return [(get_model(a["model"], "int8"), t) for t in a["temperatures"]] + [(get_model(*vc.model_spec(cfg)), 0.0)]
 
 
 def mine_song(wav: Path, passes: list, m: dict) -> Counter:
@@ -295,16 +294,21 @@ THIN = 10  # fewer operator-changed slides than this is too little truth to scor
 
 
 def service_slides(service: Path) -> list[dict]:
-    """slides.jsonl -> one dict per slide shown: start and fired (audio s), words, change ours|operator|start."""
+    """slides.jsonl -> one dict per slide: start and fired (audio s), words, change, early_reverted.
+
+    A change is ours only when the slide entered at our press time (verse_cue.entered_at); a press that
+    changed nothing leaves the next change to the operator.
+    """
     rows = [json.loads(x) for x in (service / "slides.jsonl").read_text().splitlines() if x.strip()]
     meta = service / "meta.json"
     enters = [r for r in rows if r["event"] == "enter"]
     t0 = json.loads(meta.read_text())["t0"] if meta.exists() else (enters[0]["entered"] if enters else 0.0)
     slides: list[dict] = []
+    last_fire = None
     for r in rows:
         if r["event"] == "enter":
-            ours = bool(slides) and slides[-1]["fired"] is not None
-            change = "start" if not slides else "ours" if ours else "operator"
+            change = "start" if not slides else "ours" if r["entered"] == last_fire else "operator"
+            last_fire = None
             slides.append(
                 {
                     "start": round(r["entered"] - t0, 2),
@@ -313,31 +317,27 @@ def service_slides(service: Path) -> list[dict]:
                     "blank": r["blank"],
                     "change": change,
                     "fired": None,
+                    "early_reverted": False,
                 }
             )
         elif slides:
-            slides[-1]["fired"] = round(r["fired_at"] - t0, 2)
+            last_fire = r["fired_at"]
+            slides[-1]["fired"] = round(last_fire - t0, 2)
+    # we advanced to j, the operator stepped straight back to j-1: that fire was early
+    for j in range(1, len(slides) - 1):
+        back = slides[j + 1]
+        if slides[j]["change"] == "ours" and back["change"] == "operator" and back["uuid"] == slides[j - 1]["uuid"]:
+            slides[j - 1]["early_reverted"] = back["start"] - slides[j]["start"] <= REVERT_S
     return slides
 
 
 def review(service: Path) -> dict:
     """Mistakes from slides.jsonl alone: operator overrides, misses (we never fired), early fires reverted."""
     slides = service_slides(service)
-    for sl in slides:
-        sl["early_reverted"] = False
-    for j in range(
-        1, len(slides) - 1
-    ):  # we advanced to j, the operator stepped straight back to j-1: that fire was early
-        back = slides[j + 1]
-        if slides[j]["change"] == "ours" and back["change"] == "operator" and back["uuid"] == slides[j - 1]["uuid"]:
-            slides[j - 1]["early_reverted"] = back["start"] - slides[j]["start"] <= REVERT_S
-    for i, sl in enumerate(
-        slides
-    ):  # a slide we entered that the operator undid at once is the fire's fault, not a miss
-        undone = 0 < i < len(slides) - 1 and slides[i + 1]["uuid"] == slides[i - 1]["uuid"]
-        sl["miss"] = (
-            i + 1 < len(slides) and sl["fired"] is None and slides[i + 1]["change"] == "operator" and not undone
-        )
+    # a slide we entered that the operator undid at once is the fire's fault, not a miss
+    for i, sl in enumerate(slides):
+        undone = i > 0 and slides[i - 1]["early_reverted"]
+        sl["miss"] = i + 1 < len(slides) and slides[i + 1]["change"] == "operator" and not undone
     out = {
         "service": service.name,
         "counts": {
@@ -372,8 +372,11 @@ def bench_service(service: Path, model, cfg: dict) -> dict:
     """Replay audio.wav against the slides the live run saw. Truth = the operator's own slide changes only.
 
     Slides we advanced are replayed at our fire time but not scored: our own press is not ground truth.
+    An early fire the operator stepped back from is replayed as one slide, so its truth is the operator's next change.
     """
     slides = service_slides(service)
+    undone = {k for j in range(1, len(slides)) if slides[j - 1]["early_reverted"] for k in (j, j + 1)}
+    slides = [s for k, s in enumerate(slides) if k not in undone]
     if any(s["words"] is None for s in slides):
         raise SystemExit(f"{service}: slides.jsonl has no slide text (saved by an older verse-cue); cannot replay")
     timeline = [(s["start"], " ".join(s["words"])) for s in slides]
@@ -397,8 +400,7 @@ def bench_service(service: Path, model, cfg: dict) -> dict:
 
 
 def bench_services(cfg: dict, service: Path) -> None:
-    model = get_model(cfg["model"]["name"], cfg["model"]["compute_type"])
-    r = bench_service(service, model, cfg)
+    r = bench_service(service, get_model(*vc.model_spec(cfg)), cfg)
     if r["operator_changes"] < THIN:
         print(
             f"only {r['operator_changes']} operator-changed slides (< {THIN}): too thin to score;"
@@ -446,11 +448,8 @@ def stt_post(audio: bytes, key: str) -> dict:
         body,
         {"Authorization": "Bearer " + key, "Content-Type": f"multipart/form-data; boundary={b}", "User-Agent": UA},
     )
-    try:
-        with urllib.request.urlopen(req, timeout=600) as response:
-            return json.load(response)
-    except urllib.error.HTTPError as e:
-        raise SystemExit(f"xAI STT failed: HTTP {e.code}") from None
+    with urllib.request.urlopen(req, timeout=600) as response:
+        return json.load(response)
 
 
 def stt_text(body: dict) -> str:
@@ -461,34 +460,78 @@ def stt_text(body: dict) -> str:
     return " ".join(t for s in segs if s.get("is_final", True) and (t := (s.get("text") or "").strip()))
 
 
-def record_until_enter(path: Path) -> None:  # pragma: no cover - needs audio hardware
-    """Default mic -> 16 kHz mono wav until Enter."""
+def pick_device(devices, want: str) -> int | None:
+    """Index of the first input device whose name contains want (any case); None = the default input."""
+    if not want:
+        return None
+    inputs = [(i, d["name"]) for i, d in enumerate(devices) if d["max_input_channels"] > 0]
+    hit = next((i for i, name in inputs if want.lower() in name.lower()), None)
+    if hit is None:
+        found = ", ".join(name for _, name in inputs) or "none"
+        print(f"no input device matching {want!r}; recording from the default input. Found: {found}")
+    return hit
+
+
+def to_16k(audio: np.ndarray, rate: int) -> np.ndarray:
+    """Linear resample of mono float audio from rate to 16 kHz."""
+    if rate == vc.SR or not audio.size:
+        return audio
+    n = round(len(audio) * vc.SR / rate)
+    return np.interp(np.arange(n) * rate / vc.SR, np.arange(len(audio)), audio).astype(np.float32)
+
+
+def record_until_enter(path: Path, want: str) -> None:  # pragma: no cover - needs audio hardware
+    """Mic named like want (else the default) -> 16 kHz mono wav until Enter.
+
+    A mic that refuses 16 kHz (the Snowball on Windows) records at its own rate and is resampled.
+    """
     import sounddevice as sd
 
+    device = pick_device(sd.query_devices(), want)
+    try:
+        sd.check_input_settings(device=device, channels=1, dtype="float32", samplerate=vc.SR)
+        rate = vc.SR
+    except sd.PortAudioError:
+        rate = int(sd.query_devices(device, "input")["default_samplerate"])
+    chunks: list[np.ndarray] = []
+
+    def on_audio(data, _frames, _time, _status) -> None:
+        chunks.append(data[:, 0].copy())
+
+    with sd.InputStream(device=device, samplerate=rate, channels=1, dtype="float32", callback=on_audio):
+        input("Recording your comments. Press Enter to stop. ")
+    audio = to_16k(np.concatenate(chunks) if chunks else np.zeros(0, np.float32), rate)
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(vc.SR)
-
-        def on_audio(data, _frames, _time, _status) -> None:
-            w.writeframes((np.clip(data[:, 0], -1, 1) * 32767).astype("<i2").tobytes())
-
-        with sd.InputStream(samplerate=vc.SR, channels=1, dtype="float32", callback=on_audio):
-            input("Recording your comments. Press Enter to stop. ")
+        w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
 
 
 def comment(service: Path, cfg: dict, file: Path | None = None, post=stt_post) -> str:
-    """Record (or take --file) spoken comments, transcribe with Grok STT, save next to the service."""
+    """Record (or take --file) one take of spoken comments, transcribe with Grok STT, save next to the service.
+
+    Each take keeps its own commentary-<HHMMSS>.wav/.json/.txt; commentary.txt gets every take appended in order.
+    """
     key = load_key(cfg)
-    wav = service / "commentary.wav"
-    if file is None:
-        record_until_enter(wav)
-    elif file.resolve() != wav.resolve():
-        wav.write_bytes(file.read_bytes())
-    body = post(wav.read_bytes(), key)
-    (service / "commentary.json").write_text(json.dumps(body, indent=1))
+    if file is not None and file.resolve().parent == service.resolve() and file.name.startswith("commentary-"):
+        wav = file  # retrying a take this service already has
+    else:
+        wav = vc.unused(service / time.strftime("commentary-%H%M%S.wav"))
+        if file is None:
+            record_until_enter(wav, cfg.get("commentary", {}).get("device", "Snowball"))
+        else:
+            wav.write_bytes(file.read_bytes())
+    audio = wav.read_bytes()
+    try:
+        body = post(audio, key)
+    except OSError as e:
+        raise SystemExit(f"xAI STT failed ({e}); the recording is kept: retry with --file {wav}") from None
+    wav.with_suffix(".json").write_text(json.dumps(body, indent=1))
     text = stt_text(body)
-    (service / "commentary.txt").write_text(text + "\n")
+    wav.with_suffix(".txt").write_text(text + "\n")
+    with (service / "commentary.txt").open("a") as f:
+        f.write(f"[{wav.stem}] {text}\n")
     return text
 
 
@@ -665,10 +708,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("service_dir", nargs="?", type=Path, help="review / comment: the services/<date> folder")
     parser.add_argument("--service", type=Path, help="bench: replay this saved service instead of the songs")
     parser.add_argument("--file", type=Path, help="comment: send this audio file instead of recording")
+    parser.add_argument("--device", help="comment: record from the first mic whose name contains this")
     parser.add_argument("--limit", type=int, default=None, help="max songs (bench defaults to [bench].songs)")
     args = parser.parse_args(argv)
     cfg = vc.load_config()
     cfg["aliases"] = vc.load_aliases()
+    if args.device is not None:
+        cfg.setdefault("commentary", {})["device"] = args.device
     limit = args.limit if args.limit is not None else 10_000
     if args.command in ("review", "comment") and not args.service_dir:
         parser.error(f"{args.command} needs a service folder")
