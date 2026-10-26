@@ -293,6 +293,16 @@ REVERT_S = 5.0  # an operator step back this soon after our fire means the fire 
 THIN = 10  # fewer operator-changed slides than this is too little truth to score a service
 
 
+def stepped_back(slides: list[dict], j: int) -> bool:
+    """We advanced to slide j and the operator went straight back to j-1."""
+    return (
+        0 < j < len(slides) - 1
+        and slides[j]["change"] == "ours"
+        and slides[j + 1]["change"] == "operator"
+        and slides[j + 1]["uuid"] == slides[j - 1]["uuid"]
+    )
+
+
 def service_slides(service: Path) -> list[dict]:
     """slides.jsonl -> one dict per slide: start and fired (audio s), words, change, early_reverted.
 
@@ -325,9 +335,8 @@ def service_slides(service: Path) -> list[dict]:
             slides[-1]["fired"] = round(last_fire - t0, 2)
     # we advanced to j, the operator stepped straight back to j-1: that fire was early
     for j in range(1, len(slides) - 1):
-        back = slides[j + 1]
-        if slides[j]["change"] == "ours" and back["change"] == "operator" and back["uuid"] == slides[j - 1]["uuid"]:
-            slides[j - 1]["early_reverted"] = back["start"] - slides[j]["start"] <= REVERT_S
+        if stepped_back(slides, j):
+            slides[j - 1]["early_reverted"] = slides[j + 1]["start"] - slides[j]["start"] <= REVERT_S
     return slides
 
 
@@ -372,10 +381,10 @@ def bench_service(service: Path, model, cfg: dict) -> dict:
     """Replay audio.wav against the slides the live run saw. Truth = the operator's own slide changes only.
 
     Slides we advanced are replayed at our fire time but not scored: our own press is not ground truth.
-    An early fire the operator stepped back from is replayed as one slide, so its truth is the operator's next change.
+    A fire the operator stepped back from (however late) replays as one slide, true at the operator's next change.
     """
     slides = service_slides(service)
-    undone = {k for j in range(1, len(slides)) if slides[j - 1]["early_reverted"] for k in (j, j + 1)}
+    undone = {k for j in range(len(slides)) if stepped_back(slides, j) for k in (j, j + 1)}
     slides = [s for k, s in enumerate(slides) if k not in undone]
     if any(s["words"] is None for s in slides):
         raise SystemExit(f"{service}: slides.jsonl has no slide text (saved by an older verse-cue); cannot replay")
